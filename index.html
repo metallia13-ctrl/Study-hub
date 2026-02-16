@@ -3,35 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Study Hub Pro V6.7 - Multilang</title>
+    <title>Study Hub Pro V6.8</title>
+    
+    <link rel="apple-touch-icon" href="icon.png">
+    <link rel="icon" type="image/png" href="icon.png">
+    <meta name="theme-color" content="#2c3e50">
+
     <style>
         :root { --primary: #2c3e50; --accent: #3498db; --success: #27ae60; --danger: #e74c3c; --bg: #f4f7f6; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 0; color: var(--primary); }
         .sidebar { background: white; border-bottom: 2px solid #ddd; padding: 10px; display: flex; gap: 10px; overflow-x: auto; position: sticky; top: 0; z-index: 1000; align-items: center; }
-        .subject-tab { padding: 8px 15px; background: #eee; border-radius: 20px; cursor: pointer; white-space: nowrap; font-weight: bold; font-size: 0.8rem; border: 2px solid transparent; display: flex; align-items: center; gap: 5px; }
+        .subject-tab { padding: 8px 15px; border-radius: 20px; cursor: pointer; white-space: nowrap; font-weight: bold; font-size: 0.8rem; border: 2px solid transparent; display: flex; align-items: center; gap: 5px; transition: all 0.2s; }
         .subject-tab.active { color: white; border-color: var(--primary); }
         .add-subject-btn { background: var(--success); color: white; border-radius: 50%; width: 30px; height: 30px; border: none; cursor: pointer; font-weight: bold; flex-shrink: 0; }
-        .lang-select { position: absolute; right: 10px; background: white; border: 1px solid #ddd; border-radius: 5px; font-size: 0.7rem; padding: 2px; }
+        .lang-select { position: absolute; right: 10px; background: white; border: 1px solid #ddd; border-radius: 5px; font-size: 0.7rem; padding: 4px; cursor: pointer; }
         .container { padding: 10px; max-width: 800px; margin: auto; }
         .card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px; }
         .inner-nav { display: flex; justify-content: space-around; margin-bottom: 15px; border-bottom: 1px solid #ddd; }
         .inner-nav-item { padding: 10px; cursor: pointer; font-size: 0.75rem; font-weight: bold; color: #7f8c8d; }
         .inner-nav-item.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
         .hidden { display: none; }
-        .btn { border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; width: 100%; margin-top: 5px; }
+        .btn { border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; width: 100%; margin-top: 5px; transition: opacity 0.2s; }
+        .btn:hover { opacity: 0.9; }
         
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; background: #ddd; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
         .calendar-header { background: #eee; text-align: center; padding: 5px; font-size: 0.7rem; font-weight: bold; }
-        .calendar-day { background: white; min-height: 90px; padding: 5px; font-size: 0.65rem; position: relative; }
+        .calendar-day { background: white; min-height: 95px; padding: 5px; font-size: 0.65rem; position: relative; }
         .calendar-day.today { background: #fff9c4; border: 2px solid #fbc02d; }
         .day-number { font-weight: bold; margin-bottom: 3px; display: block; }
         .topic-tag { color: white; padding: 2px 4px; border-radius: 3px; margin-bottom: 2px; font-size: 0.55rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: block; }
         
         .valutazione-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 10px; }
-        .btn-valutazione { font-size: 0.6rem; padding: 8px 2px; }
-        input { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; }
+        .btn-val { font-size: 0.6rem; padding: 10px 2px; border-radius: 6px; border: none; color: white; cursor: pointer; font-weight: bold; }
+        input { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 1rem; }
         .history-item { display: flex; flex-direction: column; padding: 10px; border-bottom: 1px solid #eee; gap: 5px; }
-        .edit-sub-btn { cursor: pointer; font-size: 0.7rem; filter: grayscale(1); }
+        .edit-sub-btn { cursor: pointer; font-size: 0.7rem; filter: grayscale(1); margin-left: 5px; }
     </style>
 </head>
 <body>
@@ -45,95 +51,91 @@
 </div>
 
 <div id="appContent" class="container">
-    <div id="noSubject" class="card" style="text-align: center;">
-        <h2 id="welcomeTitle">Benvenuta!</h2>
-        <p id="welcomeDesc">Inizia aggiungendo una materia.</p>
     </div>
 
-    <div id="subjectTemplate" class="hidden">
-        <button class="btn" style="background:var(--danger); margin-bottom:15px;" id="btnImprevisto" onclick="applyImprevisto()">⚠️ GESTISCI IMPREVISTO (+1g)</button>
-        
-        <div class="inner-nav">
-            <div class="inner-nav-item active" id="navStudy" onclick="switchSubTab(this, 'study')">STUDIO</div>
-            <div class="inner-nav-item" id="navRipasso" onclick="switchSubTab(this, 'ripasso')">RIPASSO</div>
-            <div class="inner-nav-item" id="navCal" onclick="switchSubTab(this, 'calendar')">CALENDARIO</div>
-            <div class="inner-nav-item" id="navData" onclick="switchSubTab(this, 'history')">DATI</div>
-        </div>
+<div id="subjectTemplate" class="hidden">
+    <button class="btn" style="background:var(--danger); margin-bottom:15px;" id="btnImprevisto" onclick="applyImprevisto()">⚠️</button>
+    
+    <div class="inner-nav">
+        <div class="inner-nav-item active" id="navStudy" onclick="switchSubTab(this, 'study')"></div>
+        <div class="inner-nav-item" id="navRipasso" onclick="switchSubTab(this, 'ripasso')"></div>
+        <div class="inner-nav-item" id="navCal" onclick="switchSubTab(this, 'calendar')"></div>
+        <div class="inner-nav-item" id="navData" onclick="switchSubTab(this, 'history')"></div>
+    </div>
 
-        <div class="sub-tab-content" data-type="study">
-            <div class="card">
-                <h3 id="newTopicTitle">Nuovo Argomento</h3>
-                <input type="text" class="topicInput" id="topicPlaceholder" placeholder="Cosa hai studiato?">
-                <button class="btn" id="regBtn" onclick="addTopic()">Registra Studio</button>
-            </div>
+    <div class="sub-tab-content" id="tab-study">
+        <div class="card">
+            <h3 id="newTopicTitle"></h3>
+            <input type="text" id="topicInput" placeholder="">
+            <button class="btn" id="regBtn" onclick="addTopic()"></button>
         </div>
+    </div>
 
-        <div class="sub-tab-content hidden" data-type="ripasso">
-            <div class="card">
-                <h3 id="dueTodayTitle">Da Ripetere Oggi</h3>
-                <div class="ripassoList"></div>
-            </div>
+    <div class="sub-tab-content hidden" id="tab-ripasso">
+        <div class="card">
+            <h3 id="dueTodayTitle"></h3>
+            <div id="ripassoList"></div>
         </div>
+    </div>
 
-        <div class="sub-tab-content hidden" data-type="calendar">
-            <div class="card" style="padding: 10px; overflow-x: auto;">
-                <h3 id="calendarMonthTitle" style="text-align:center; margin-bottom:10px;"></h3>
-                <div class="calendar-grid" id="calendarGrid"></div>
-            </div>
+    <div class="sub-tab-content hidden" id="tab-calendar">
+        <div class="card" style="padding: 10px; overflow-x: auto;">
+            <h3 id="calendarMonthTitle" style="text-align:center; margin-bottom:10px;"></h3>
+            <div class="calendar-grid" id="calendarGrid"></div>
         </div>
+    </div>
 
-        <div class="sub-tab-content hidden" data-type="history">
-            <div class="card">
-                <h3 id="historyTitle">Gestione Argomenti</h3>
-                <div class="historyList"></div>
-            </div>
-            <div class="card">
-                <h3 id="backupTitle">💾 Backup</h3>
-                <button class="btn" style="background:#7f8c8d" id="btnExport" onclick="exportData()">Esporta Database (JSON)</button>
-                <button class="btn" style="background:var(--success); margin-top:10px;" id="btnImport" onclick="document.getElementById('importFile').click()">Importa Database</button>
-                <input type="file" id="importFile" class="hidden" accept=".json" onchange="importData(event)">
-            </div>
+    <div class="sub-tab-content hidden" id="tab-history">
+        <div class="card">
+            <h3 id="historyTitle"></h3>
+            <div id="historyList"></div>
+        </div>
+        <div class="card">
+            <h3 id="backupTitle"></h3>
+            <button class="btn" style="background:#7f8c8d" id="btnExport" onclick="exportData()"></button>
+            <button class="btn" style="background:var(--success); margin-top:10px;" id="btnImport" onclick="document.getElementById('importFile').click()"></button>
+            <input type="file" id="importFile" class="hidden" accept=".json" onchange="importData(event)">
         </div>
     </div>
 </div>
 
 <script>
-    let data = JSON.parse(localStorage.getItem('multiSubjectDataV6')) || { subjects: {}, activeSubject: null, lang: 'it' };
+    let data = JSON.parse(localStorage.getItem('multiSubjectDataV6')) || { subjects: {}, activeSubject: null, lang: 'it', activeTab: 'study' };
     const defaultColors = ['#3498db', '#27ae60', '#9b59b6', '#e67e22', '#1abc9c', '#e74c3c'];
 
-    const t = {
+    const translations = {
         it: {
-            welcomeTitle: "Benvenuta!", welcomeDesc: "Inizia aggiungendo una materia.",
+            welcomeTitle: "Benvenuta!", welcomeDesc: "Inizia aggiungendo una materia cliccando sul tasto + in alto.",
             imprevisto: "⚠️ GESTISCI IMPREVISTO (+1g)", study: "STUDIO", ripasso: "RIPASSO", calendar: "CALENDARIO", data: "DATI",
             newTopic: "Nuovo Argomento", placeholder: "Cosa hai studiato?", register: "Registra Studio",
-            dueToday: "Da Ripetere Oggi", done: "Tutto ripassato!", rifai: "Rifai", diff: "Diff.", buono: "Buono", facile: "Facile",
-            history: "Gestione Argomenti", backup: "💾 Backup", export: "Esporta Database (JSON)", import: "Importa Database",
+            dueToday: "Da Ripetere Oggi", done: "Tutto ripassato! Ottimo lavoro.", rifai: "Rifai", diff: "Difficile", buono: "Buono", facile: "Facile",
+            history: "Gestione Argomenti", backup: "💾 Backup e Ripristino", export: "Esporta Database (JSON)", import: "Importa Database",
             next: "Prossimo ripasso: ", del: "Elimina", promptSub: "Nome della materia:",
             months: ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"],
             days: ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]
         },
         en: {
-            welcomeTitle: "Welcome!", welcomeDesc: "Start by adding a subject.",
+            welcomeTitle: "Welcome!", welcomeDesc: "Start by adding a subject using the + button above.",
             imprevisto: "⚠️ MANAGE DELAY (+1d)", study: "STUDY", ripasso: "REVIEW", calendar: "CALENDAR", data: "DATA",
             newTopic: "New Topic", placeholder: "What did you study?", register: "Register Study",
-            dueToday: "To Review Today", done: "All caught up!", rifai: "Again", diff: "Hard", buono: "Good", facile: "Easy",
-            history: "Topic Management", backup: "💾 Backup", export: "Export Database (JSON)", import: "Import Database",
+            dueToday: "To Review Today", done: "All caught up! Great job.", rifai: "Again", diff: "Hard", buono: "Good", facile: "Easy",
+            history: "Topic Management", backup: "💾 Backup & Restore", export: "Export Database (JSON)", import: "Import Database",
             next: "Next review: ", del: "Delete", promptSub: "Subject name:",
             months: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
             days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         }
     };
 
+    function save() { localStorage.setItem('multiSubjectDataV6', JSON.stringify(data)); }
+
     function changeLang(val) {
         data.lang = val;
         save();
-        render();
+        render(); // Aggiornamento istantaneo
     }
 
-    function save() { localStorage.setItem('multiSubjectDataV6', JSON.stringify(data)); }
-
     function promptNewSubject() {
-        const name = prompt(t[data.lang].promptSub);
+        const name = prompt(translations[data.lang].promptSub);
         if (name && !data.subjects[name]) {
             const randomColor = defaultColors[Object.keys(data.subjects).length % defaultColors.length];
             data.subjects[name] = { topics: [], color: randomColor };
@@ -145,98 +147,105 @@
     function render() {
         const lang = data.lang || 'it';
         document.getElementById('langPicker').value = lang;
-        
         const bar = document.getElementById('subjectBar');
+        
+        // Pulizia tabs precedenti
         bar.querySelectorAll('.subject-tab').forEach(e => e.remove());
         
         Object.keys(data.subjects).forEach(sub => {
-            const subjectData = data.subjects[sub];
+            const sData = data.subjects[sub];
             const btn = document.createElement('div');
             btn.className = `subject-tab ${data.activeSubject === sub ? 'active' : ''}`;
-            btn.style.backgroundColor = data.activeSubject === sub ? subjectData.color : '#eee';
+            btn.style.backgroundColor = data.activeSubject === sub ? sData.color : '#eee';
+            btn.style.color = data.activeSubject === sub ? 'white' : '#777';
             btn.innerHTML = `${sub} <span class="edit-sub-btn" onclick="editSubject('${sub}')">⚙️</span>`;
-            btn.onclick = (e) => { if(e.target.className !== 'edit-sub-btn') { data.activeSubject = sub; save(); render(); } };
+            btn.onclick = (e) => { if(e.target.className !== 'edit-sub-btn') { data.activeSubject = sub; save(); render(); }};
             bar.insertBefore(btn, document.getElementById('langPicker'));
         });
 
         const content = document.getElementById('appContent');
         if (!data.activeSubject) {
-            document.getElementById('welcomeTitle').innerText = t[lang].welcomeTitle;
-            document.getElementById('welcomeDesc').innerText = t[lang].welcomeDesc;
+            content.innerHTML = `<div class="card" style="text-align:center;"><h2>${translations[lang].welcomeTitle}</h2><p>${translations[lang].welcomeDesc}</p></div>`;
             return;
         }
 
-        const template = document.getElementById('subjectTemplate').cloneNode(true);
-        template.classList.remove('hidden');
-        template.id = "activeView";
-        content.innerHTML = "";
-        content.appendChild(template);
-        
-        // Traduzioni UI
-        document.getElementById('btnImprevisto').innerText = t[lang].imprevisto;
-        document.getElementById('navStudy').innerText = t[lang].study;
-        document.getElementById('navRipasso').innerText = t[lang].ripasso;
-        document.getElementById('navCal').innerText = t[lang].calendar;
-        document.getElementById('navData').innerText = t[lang].data;
-        document.getElementById('newTopicTitle').innerText = t[lang].newTopic;
-        document.getElementById('topicPlaceholder').placeholder = t[lang].placeholder;
-        document.getElementById('regBtn').innerText = t[lang].register;
-        document.getElementById('dueTodayTitle').innerText = t[lang].dueToday;
-        document.getElementById('historyTitle').innerText = t[lang].history;
-        document.getElementById('backupTitle').innerText = t[lang].backup;
-        document.getElementById('btnExport').innerText = t[lang].export;
-        document.getElementById('btnImport').innerText = t[lang].import;
-
-        document.getElementById('regBtn').style.backgroundColor = data.subjects[data.activeSubject].color;
-        renderSubjectData();
+        content.innerHTML = document.getElementById('subjectTemplate').innerHTML;
+        updateUI();
     }
 
-    function renderSubjectData() {
+    function updateUI() {
+        const lang = data.lang || 'it';
+        const sub = data.subjects[data.activeSubject];
+        
+        // Testi UI
+        document.getElementById('btnImprevisto').innerText = translations[lang].imprevisto;
+        document.getElementById('navStudy').innerText = translations[lang].study;
+        document.getElementById('navRipasso').innerText = translations[lang].ripasso;
+        document.getElementById('navCal').innerText = translations[lang].calendar;
+        document.getElementById('navData').innerText = translations[lang].data;
+        document.getElementById('newTopicTitle').innerText = translations[lang].newTopic;
+        document.getElementById('topicInput').placeholder = translations[lang].placeholder;
+        document.getElementById('regBtn').innerText = translations[lang].register;
+        document.getElementById('regBtn').style.backgroundColor = sub.color;
+        document.getElementById('dueTodayTitle').innerText = translations[lang].dueToday;
+        document.getElementById('historyTitle').innerText = translations[lang].history;
+        document.getElementById('backupTitle').innerText = translations[lang].backup;
+        document.getElementById('btnExport').innerText = translations[lang].export;
+        document.getElementById('btnImport').innerText = translations[lang].import;
+
+        // Gestione Tab attiva
+        switchSubTab(null, data.activeTab || 'study');
+        renderRipasso();
+        renderHistory();
+        renderGridCalendar();
+    }
+
+    function renderRipasso() {
         const lang = data.lang || 'it';
         const sub = data.subjects[data.activeSubject];
         const today = new Date().toISOString().split('T')[0];
-        
-        const ripassoList = document.querySelector('.ripassoList');
+        const list = document.getElementById('ripassoList');
         const due = sub.topics.filter(t => t.next <= today);
-        ripassoList.innerHTML = due.length ? "" : `<p style='text-align:center; color:grey;'>${t[lang].done}</p>`;
+        
+        list.innerHTML = due.length ? "" : `<p style='text-align:center; color:grey; padding:20px;'>${translations[lang].done}</p>`;
         due.forEach(topic => {
-            ripassoList.innerHTML += `
-                <div class="card" style="border-left:5px solid ${sub.color}">
+            list.innerHTML += `
+                <div class="card" style="border-left:5px solid ${sub.color}; margin-bottom:10px;">
                     <strong>${topic.name}</strong>
                     <div class="valutazione-grid">
-                        <button class="btn btn-valutazione" style="background:#7f8c8d" onclick="rateTopic('${topic.id}', 0)">${t[lang].rifai}</button>
-                        <button class="btn btn-valutazione" style="background:var(--danger)" onclick="rateTopic('${topic.id}', 1)">${t[lang].diff}</button>
-                        <button class="btn btn-valutazione" style="background:var(--accent)" onclick="rateTopic('${topic.id}', 2)">${t[lang].buono}</button>
-                        <button class="btn btn-valutazione" style="background:var(--success)" onclick="rateTopic('${topic.id}', 3)">${t[lang].facile}</button>
+                        <button class="btn-val" style="background:#7f8c8d" onclick="rateTopic('${topic.id}', 0)">${translations[lang].rifai}</button>
+                        <button class="btn-val" style="background:var(--danger)" onclick="rateTopic('${topic.id}', 1)">${translations[lang].diff}</button>
+                        <button class="btn-val" style="background:var(--accent)" onclick="rateTopic('${topic.id}', 2)">${translations[lang].buono}</button>
+                        <button class="btn-val" style="background:var(--success)" onclick="rateTopic('${topic.id}', 3)">${translations[lang].facile}</button>
                     </div>
                 </div>`;
         });
+    }
 
-        renderGridCalendar();
-
-        const historyList = document.querySelector('.historyList');
-        historyList.innerHTML = sub.topics.map(topic => `
+    function renderHistory() {
+        const lang = data.lang || 'it';
+        const sub = data.subjects[data.activeSubject];
+        const list = document.getElementById('historyList');
+        list.innerHTML = sub.topics.map(topic => `
             <div class="history-item">
                 <strong>${topic.name}</strong>
-                <div style="font-size:0.7rem; color:grey">${t[lang].next}${topic.next.split('-').reverse().join('/')}</div>
-                <div class="history-controls"><span style="color:red; cursor:pointer;" onclick="deleteTopic('${topic.id}')">${t[lang].del}</span></div>
+                <div style="font-size:0.7rem; color:grey">${translations[lang].next}${topic.next.split('-').reverse().join('/')}</div>
+                <div style="text-align:right"><span style="color:red; cursor:pointer; font-size:0.7rem; font-weight:bold;" onclick="deleteTopic('${topic.id}')">${translations[lang].del}</span></div>
             </div>
-        `).join('') || "Empty.";
+        `).join('') || "---";
     }
 
     function renderGridCalendar() {
         const lang = data.lang || 'it';
         const grid = document.getElementById('calendarGrid');
-        const titleText = document.getElementById('calendarMonthTitle');
         if(!grid) return;
-
         const now = new Date();
         const year = now.getFullYear();
         const month = now.getMonth();
-        titleText.innerText = `${t[lang].months[month]} ${year}`;
+        document.getElementById('calendarMonthTitle').innerText = `${translations[lang].months[month]} ${year}`;
 
         grid.innerHTML = "";
-        t[lang].days.forEach(d => grid.innerHTML += `<div class="calendar-header">${d}</div>`);
+        translations[lang].days.forEach(d => grid.innerHTML += `<div class="calendar-header">${d}</div>`);
 
         const firstDay = new Date(year, month, 1).getDay();
         const startOffset = firstDay === 0 ? 6 : firstDay - 1;
@@ -246,35 +255,36 @@
             const dayNum = i - startOffset + 1;
             const dayDiv = document.createElement('div');
             dayDiv.className = 'calendar-day';
-            
             if (dayNum > 0) {
                 const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
                 if(dateStr === now.toISOString().split('T')[0]) dayDiv.classList.add('today');
                 dayDiv.innerHTML = `<span class="day-number">${dayNum}</span>`;
-                
-                Object.keys(data.subjects).forEach(subName => {
-                    const s = data.subjects[subName];
-                    s.topics.forEach(topic => {
-                        if(topic.next === dateStr) {
-                            dayDiv.innerHTML += `<span class="topic-tag" style="background-color:${s.color}">${topic.name}</span>`;
-                        }
-                    });
+                Object.keys(data.subjects).forEach(sName => {
+                    const s = data.subjects[sName];
+                    s.topics.forEach(t => { if(t.next === dateStr) dayDiv.innerHTML += `<span class="topic-tag" style="background-color:${s.color}">${t.name}</span>`; });
                 });
             }
             grid.appendChild(dayDiv);
         }
     }
 
-    function addTopic() {
-        const input = document.querySelector('.topicInput');
-        if (!input.value) return;
-        data.subjects[data.activeSubject].topics.push({
-            id: Date.now().toString(),
-            name: input.value,
-            next: shiftDate(new Date().toISOString().split('T')[0], 1),
-            interval: 1
+    function switchSubTab(el, type) {
+        data.activeTab = type;
+        document.querySelectorAll('.inner-nav-item').forEach(i => {
+            i.classList.remove('active');
+            if(i.innerText === translations[data.lang][type]) i.classList.add('active');
         });
-        input.value = ""; save(); render();
+        document.querySelectorAll('.sub-tab-content').forEach(c => c.classList.add('hidden'));
+        const activeTab = document.getElementById(`tab-${type}`);
+        if(activeTab) activeTab.classList.remove('hidden');
+        if(type === 'calendar') renderGridCalendar();
+    }
+
+    function addTopic() {
+        const val = document.getElementById('topicInput').value;
+        if (!val) return;
+        data.subjects[data.activeSubject].topics.push({ id: Date.now().toString(), name: val, next: shiftDate(new Date().toISOString().split('T')[0], 1), interval: 1 });
+        save(); render();
     }
 
     function rateTopic(id, q) {
@@ -292,14 +302,6 @@
         return d.toISOString().split('T')[0];
     }
 
-    function switchSubTab(el, type) {
-        document.querySelectorAll('.inner-nav-item').forEach(i => i.classList.remove('active'));
-        el.classList.add('active');
-        document.querySelectorAll('.sub-tab-content').forEach(c => c.classList.add('hidden'));
-        document.querySelector(`.sub-tab-content[data-type="${type}"]`).classList.remove('hidden');
-        if(type === 'calendar') renderGridCalendar();
-    }
-
     function exportData() {
         const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
         const a = document.createElement("a");
@@ -310,10 +312,7 @@
 
     function importData(event) {
         const reader = new FileReader();
-        reader.onload = (e) => {
-            data = JSON.parse(e.target.result);
-            save(); render();
-        };
+        reader.onload = (e) => { data = JSON.parse(e.target.result); save(); render(); };
         reader.readAsText(event.target.files[0]);
     }
 
@@ -326,8 +325,7 @@
 
     function editSubject(oldName) {
         event.stopPropagation();
-        const msg = data.lang === 'it' ? "1. Cambia Colore\n2. Elimina materia" : "1. Change Color\n2. Delete subject";
-        const action = prompt(msg, "1");
+        const action = prompt(data.lang === 'it' ? "1. Cambia Colore\n2. Elimina materia" : "1. Change Color\n2. Delete subject", "1");
         if(action === "1") {
             const newColor = prompt("Color (HEX or name):", data.subjects[oldName].color);
             if(newColor) data.subjects[oldName].color = newColor;

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Study Hub Pro V6.6 - Colors</title>
+    <title>Study Hub Pro V6.7 - Multilang</title>
     <style>
         :root { --primary: #2c3e50; --accent: #3498db; --success: #27ae60; --danger: #e74c3c; --bg: #f4f7f6; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 0; color: var(--primary); }
@@ -11,6 +11,7 @@
         .subject-tab { padding: 8px 15px; background: #eee; border-radius: 20px; cursor: pointer; white-space: nowrap; font-weight: bold; font-size: 0.8rem; border: 2px solid transparent; display: flex; align-items: center; gap: 5px; }
         .subject-tab.active { color: white; border-color: var(--primary); }
         .add-subject-btn { background: var(--success); color: white; border-radius: 50%; width: 30px; height: 30px; border: none; cursor: pointer; font-weight: bold; flex-shrink: 0; }
+        .lang-select { position: absolute; right: 10px; background: white; border: 1px solid #ddd; border-radius: 5px; font-size: 0.7rem; padding: 2px; }
         .container { padding: 10px; max-width: 800px; margin: auto; }
         .card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px; }
         .inner-nav { display: flex; justify-content: space-around; margin-bottom: 15px; border-bottom: 1px solid #ddd; }
@@ -19,7 +20,6 @@
         .hidden { display: none; }
         .btn { border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; width: 100%; margin-top: 5px; }
         
-        /* CALENDARIO */
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; background: #ddd; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
         .calendar-header { background: #eee; text-align: center; padding: 5px; font-size: 0.7rem; font-weight: bold; }
         .calendar-day { background: white; min-height: 90px; padding: 5px; font-size: 0.65rem; position: relative; }
@@ -38,35 +38,39 @@
 
 <div class="sidebar" id="subjectBar">
     <button class="add-subject-btn" onclick="promptNewSubject()">+</button>
+    <select class="lang-select" onchange="changeLang(this.value)" id="langPicker">
+        <option value="it">IT 🇮🇹</option>
+        <option value="en">EN 🇬🇧</option>
+    </select>
 </div>
 
 <div id="appContent" class="container">
     <div id="noSubject" class="card" style="text-align: center;">
-        <h2>Benvenuta!</h2>
-        <p>Inizia aggiungendo una materia.</p>
+        <h2 id="welcomeTitle">Benvenuta!</h2>
+        <p id="welcomeDesc">Inizia aggiungendo una materia.</p>
     </div>
 
     <div id="subjectTemplate" class="hidden">
-        <button class="btn" style="background:var(--danger); margin-bottom:15px;" onclick="applyImprevisto()">⚠️ GESTISCI IMPREVISTO (+1g)</button>
+        <button class="btn" style="background:var(--danger); margin-bottom:15px;" id="btnImprevisto" onclick="applyImprevisto()">⚠️ GESTISCI IMPREVISTO (+1g)</button>
         
         <div class="inner-nav">
-            <div class="inner-nav-item active" onclick="switchSubTab(this, 'study')">STUDIO</div>
-            <div class="inner-nav-item" onclick="switchSubTab(this, 'ripasso')">RIPASSO</div>
-            <div class="inner-nav-item" onclick="switchSubTab(this, 'calendar')">CALENDARIO</div>
-            <div class="inner-nav-item" onclick="switchSubTab(this, 'history')">DATI</div>
+            <div class="inner-nav-item active" id="navStudy" onclick="switchSubTab(this, 'study')">STUDIO</div>
+            <div class="inner-nav-item" id="navRipasso" onclick="switchSubTab(this, 'ripasso')">RIPASSO</div>
+            <div class="inner-nav-item" id="navCal" onclick="switchSubTab(this, 'calendar')">CALENDARIO</div>
+            <div class="inner-nav-item" id="navData" onclick="switchSubTab(this, 'history')">DATI</div>
         </div>
 
         <div class="sub-tab-content" data-type="study">
             <div class="card">
-                <h3>Nuovo Argomento</h3>
-                <input type="text" class="topicInput" placeholder="Cosa hai studiato?">
+                <h3 id="newTopicTitle">Nuovo Argomento</h3>
+                <input type="text" class="topicInput" id="topicPlaceholder" placeholder="Cosa hai studiato?">
                 <button class="btn" id="regBtn" onclick="addTopic()">Registra Studio</button>
             </div>
         </div>
 
         <div class="sub-tab-content hidden" data-type="ripasso">
             <div class="card">
-                <h3>Da Ripetere Oggi</h3>
+                <h3 id="dueTodayTitle">Da Ripetere Oggi</h3>
                 <div class="ripassoList"></div>
             </div>
         </div>
@@ -80,13 +84,13 @@
 
         <div class="sub-tab-content hidden" data-type="history">
             <div class="card">
-                <h3>Gestione Argomenti</h3>
+                <h3 id="historyTitle">Gestione Argomenti</h3>
                 <div class="historyList"></div>
             </div>
             <div class="card">
-                <h3>💾 Backup</h3>
-                <button class="btn" style="background:#7f8c8d" onclick="exportData()">Esporta Database (JSON)</button>
-                <button class="btn" style="background:var(--success); margin-top:10px;" onclick="document.getElementById('importFile').click()">Importa Database</button>
+                <h3 id="backupTitle">💾 Backup</h3>
+                <button class="btn" style="background:#7f8c8d" id="btnExport" onclick="exportData()">Esporta Database (JSON)</button>
+                <button class="btn" style="background:var(--success); margin-top:10px;" id="btnImport" onclick="document.getElementById('importFile').click()">Importa Database</button>
                 <input type="file" id="importFile" class="hidden" accept=".json" onchange="importData(event)">
             </div>
         </div>
@@ -94,13 +98,42 @@
 </div>
 
 <script>
-    let data = JSON.parse(localStorage.getItem('multiSubjectDataV6')) || { subjects: {}, activeSubject: null };
+    let data = JSON.parse(localStorage.getItem('multiSubjectDataV6')) || { subjects: {}, activeSubject: null, lang: 'it' };
     const defaultColors = ['#3498db', '#27ae60', '#9b59b6', '#e67e22', '#1abc9c', '#e74c3c'];
+
+    const t = {
+        it: {
+            welcomeTitle: "Benvenuta!", welcomeDesc: "Inizia aggiungendo una materia.",
+            imprevisto: "⚠️ GESTISCI IMPREVISTO (+1g)", study: "STUDIO", ripasso: "RIPASSO", calendar: "CALENDARIO", data: "DATI",
+            newTopic: "Nuovo Argomento", placeholder: "Cosa hai studiato?", register: "Registra Studio",
+            dueToday: "Da Ripetere Oggi", done: "Tutto ripassato!", rifai: "Rifai", diff: "Diff.", buono: "Buono", facile: "Facile",
+            history: "Gestione Argomenti", backup: "💾 Backup", export: "Esporta Database (JSON)", import: "Importa Database",
+            next: "Prossimo ripasso: ", del: "Elimina", promptSub: "Nome della materia:",
+            months: ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"],
+            days: ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]
+        },
+        en: {
+            welcomeTitle: "Welcome!", welcomeDesc: "Start by adding a subject.",
+            imprevisto: "⚠️ MANAGE DELAY (+1d)", study: "STUDY", ripasso: "REVIEW", calendar: "CALENDAR", data: "DATA",
+            newTopic: "New Topic", placeholder: "What did you study?", register: "Register Study",
+            dueToday: "To Review Today", done: "All caught up!", rifai: "Again", diff: "Hard", buono: "Good", facile: "Easy",
+            history: "Topic Management", backup: "💾 Backup", export: "Export Database (JSON)", import: "Import Database",
+            next: "Next review: ", del: "Delete", promptSub: "Subject name:",
+            months: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+            days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        }
+    };
+
+    function changeLang(val) {
+        data.lang = val;
+        save();
+        render();
+    }
 
     function save() { localStorage.setItem('multiSubjectDataV6', JSON.stringify(data)); }
 
     function promptNewSubject() {
-        const name = prompt("Nome della materia:");
+        const name = prompt(t[data.lang].promptSub);
         if (name && !data.subjects[name]) {
             const randomColor = defaultColors[Object.keys(data.subjects).length % defaultColors.length];
             data.subjects[name] = { topics: [], color: randomColor };
@@ -109,24 +142,13 @@
         }
     }
 
-    function editSubject(oldName) {
-        event.stopPropagation();
-        const action = prompt("Scegli azione:\n1. Cambia Colore (es. #ff0000)\n2. Elimina materia", "1");
-        if(action === "1") {
-            const newColor = prompt("Inserisci codice colore HEX o nome colore inglese:", data.subjects[oldName].color);
-            if(newColor) data.subjects[oldName].color = newColor;
-        } else if(action === "2") {
-            if(confirm("Eliminare definitivamente " + oldName + "?")) {
-                delete data.subjects[oldName];
-                data.activeSubject = Object.keys(data.subjects)[0] || null;
-            }
-        }
-        save(); render();
-    }
-
     function render() {
+        const lang = data.lang || 'it';
+        document.getElementById('langPicker').value = lang;
+        
         const bar = document.getElementById('subjectBar');
-        bar.innerHTML = '<button class="add-subject-btn" onclick="promptNewSubject()">+</button>';
+        bar.querySelectorAll('.subject-tab').forEach(e => e.remove());
+        
         Object.keys(data.subjects).forEach(sub => {
             const subjectData = data.subjects[sub];
             const btn = document.createElement('div');
@@ -134,42 +156,58 @@
             btn.style.backgroundColor = data.activeSubject === sub ? subjectData.color : '#eee';
             btn.innerHTML = `${sub} <span class="edit-sub-btn" onclick="editSubject('${sub}')">⚙️</span>`;
             btn.onclick = (e) => { if(e.target.className !== 'edit-sub-btn') { data.activeSubject = sub; save(); render(); } };
-            bar.appendChild(btn);
+            bar.insertBefore(btn, document.getElementById('langPicker'));
         });
 
         const content = document.getElementById('appContent');
         if (!data.activeSubject) {
-            document.getElementById('noSubject').classList.remove('hidden');
+            document.getElementById('welcomeTitle').innerText = t[lang].welcomeTitle;
+            document.getElementById('welcomeDesc').innerText = t[lang].welcomeDesc;
             return;
         }
-        document.getElementById('noSubject').classList.add('hidden');
+
         const template = document.getElementById('subjectTemplate').cloneNode(true);
         template.classList.remove('hidden');
         template.id = "activeView";
         content.innerHTML = "";
         content.appendChild(template);
         
-        // Imposta colore tasto registra
+        // Traduzioni UI
+        document.getElementById('btnImprevisto').innerText = t[lang].imprevisto;
+        document.getElementById('navStudy').innerText = t[lang].study;
+        document.getElementById('navRipasso').innerText = t[lang].ripasso;
+        document.getElementById('navCal').innerText = t[lang].calendar;
+        document.getElementById('navData').innerText = t[lang].data;
+        document.getElementById('newTopicTitle').innerText = t[lang].newTopic;
+        document.getElementById('topicPlaceholder').placeholder = t[lang].placeholder;
+        document.getElementById('regBtn').innerText = t[lang].register;
+        document.getElementById('dueTodayTitle').innerText = t[lang].dueToday;
+        document.getElementById('historyTitle').innerText = t[lang].history;
+        document.getElementById('backupTitle').innerText = t[lang].backup;
+        document.getElementById('btnExport').innerText = t[lang].export;
+        document.getElementById('btnImport').innerText = t[lang].import;
+
         document.getElementById('regBtn').style.backgroundColor = data.subjects[data.activeSubject].color;
         renderSubjectData();
     }
 
     function renderSubjectData() {
+        const lang = data.lang || 'it';
         const sub = data.subjects[data.activeSubject];
         const today = new Date().toISOString().split('T')[0];
         
         const ripassoList = document.querySelector('.ripassoList');
         const due = sub.topics.filter(t => t.next <= today);
-        ripassoList.innerHTML = due.length ? "" : "<p style='text-align:center; color:grey;'>Tutto ripassato!</p>";
-        due.forEach(t => {
+        ripassoList.innerHTML = due.length ? "" : `<p style='text-align:center; color:grey;'>${t[lang].done}</p>`;
+        due.forEach(topic => {
             ripassoList.innerHTML += `
                 <div class="card" style="border-left:5px solid ${sub.color}">
-                    <strong>${t.name}</strong>
+                    <strong>${topic.name}</strong>
                     <div class="valutazione-grid">
-                        <button class="btn btn-valutazione" style="background:#7f8c8d" onclick="rateTopic('${t.id}', 0)">Rifai</button>
-                        <button class="btn btn-valutazione" style="background:var(--danger)" onclick="rateTopic('${t.id}', 1)">Diff.</button>
-                        <button class="btn btn-valutazione" style="background:var(--accent)" onclick="rateTopic('${t.id}', 2)">Buono</button>
-                        <button class="btn btn-valutazione" style="background:var(--success)" onclick="rateTopic('${t.id}', 3)">Facile</button>
+                        <button class="btn btn-valutazione" style="background:#7f8c8d" onclick="rateTopic('${topic.id}', 0)">${t[lang].rifai}</button>
+                        <button class="btn btn-valutazione" style="background:var(--danger)" onclick="rateTopic('${topic.id}', 1)">${t[lang].diff}</button>
+                        <button class="btn btn-valutazione" style="background:var(--accent)" onclick="rateTopic('${topic.id}', 2)">${t[lang].buono}</button>
+                        <button class="btn btn-valutazione" style="background:var(--success)" onclick="rateTopic('${topic.id}', 3)">${t[lang].facile}</button>
                     </div>
                 </div>`;
         });
@@ -177,29 +215,28 @@
         renderGridCalendar();
 
         const historyList = document.querySelector('.historyList');
-        historyList.innerHTML = sub.topics.map(t => `
+        historyList.innerHTML = sub.topics.map(topic => `
             <div class="history-item">
-                <strong>${t.name}</strong>
-                <div style="font-size:0.7rem; color:grey">Prossimo ripasso: ${t.next.split('-').reverse().join('/')}</div>
-                <div class="history-controls"><span style="color:red; cursor:pointer;" onclick="deleteTopic('${t.id}')">Elimina</span></div>
+                <strong>${topic.name}</strong>
+                <div style="font-size:0.7rem; color:grey">${t[lang].next}${topic.next.split('-').reverse().join('/')}</div>
+                <div class="history-controls"><span style="color:red; cursor:pointer;" onclick="deleteTopic('${topic.id}')">${t[lang].del}</span></div>
             </div>
-        `).join('') || "Vuoto.";
+        `).join('') || "Empty.";
     }
 
     function renderGridCalendar() {
+        const lang = data.lang || 'it';
         const grid = document.getElementById('calendarGrid');
-        const title = document.getElementById('calendarMonthTitle');
+        const titleText = document.getElementById('calendarMonthTitle');
         if(!grid) return;
 
         const now = new Date();
         const year = now.getFullYear();
         const month = now.getMonth();
-        const monthNames = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
-        title.innerText = `${monthNames[month]} ${year}`;
+        titleText.innerText = `${t[lang].months[month]} ${year}`;
 
         grid.innerHTML = "";
-        const days = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
-        days.forEach(d => grid.innerHTML += `<div class="calendar-header">${d}</div>`);
+        t[lang].days.forEach(d => grid.innerHTML += `<div class="calendar-header">${d}</div>`);
 
         const firstDay = new Date(year, month, 1).getDay();
         const startOffset = firstDay === 0 ? 6 : firstDay - 1;
@@ -215,12 +252,11 @@
                 if(dateStr === now.toISOString().split('T')[0]) dayDiv.classList.add('today');
                 dayDiv.innerHTML = `<span class="day-number">${dayNum}</span>`;
                 
-                // Cerca in TUTTE le materie
                 Object.keys(data.subjects).forEach(subName => {
                     const s = data.subjects[subName];
-                    s.topics.forEach(t => {
-                        if(t.next === dateStr) {
-                            dayDiv.innerHTML += `<span class="topic-tag" style="background-color:${s.color}">${t.name}</span>`;
+                    s.topics.forEach(topic => {
+                        if(topic.next === dateStr) {
+                            dayDiv.innerHTML += `<span class="topic-tag" style="background-color:${s.color}">${topic.name}</span>`;
                         }
                     });
                 });
@@ -243,10 +279,10 @@
 
     function rateTopic(id, q) {
         const sub = data.subjects[data.activeSubject];
-        const t = sub.topics.find(x => x.id === id);
+        const topic = sub.topics.find(x => x.id === id);
         const gaps = [0, 1, 3, 7];
-        t.interval = (q === 0) ? 1 : t.interval + gaps[q];
-        t.next = shiftDate(new Date().toISOString().split('T')[0], (q === 0 ? 0 : t.interval));
+        topic.interval = (q === 0) ? 1 : topic.interval + gaps[q];
+        topic.next = shiftDate(new Date().toISOString().split('T')[0], (q === 0 ? 0 : topic.interval));
         save(); render();
     }
 
@@ -268,7 +304,7 @@
         const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = `backup_medicina.json`;
+        a.download = `backup_med_hub.json`;
         a.click();
     }
 
@@ -282,10 +318,26 @@
     }
 
     function deleteTopic(id) {
-        if(confirm("Eliminare?")) {
+        if(confirm(data.lang === 'it' ? "Eliminare?" : "Delete?")) {
             data.subjects[data.activeSubject].topics = data.subjects[data.activeSubject].topics.filter(x => x.id !== id);
             save(); render();
         }
+    }
+
+    function editSubject(oldName) {
+        event.stopPropagation();
+        const msg = data.lang === 'it' ? "1. Cambia Colore\n2. Elimina materia" : "1. Change Color\n2. Delete subject";
+        const action = prompt(msg, "1");
+        if(action === "1") {
+            const newColor = prompt("Color (HEX or name):", data.subjects[oldName].color);
+            if(newColor) data.subjects[oldName].color = newColor;
+        } else if(action === "2") {
+            if(confirm(oldName + "?")) {
+                delete data.subjects[oldName];
+                data.activeSubject = Object.keys(data.subjects)[0] || null;
+            }
+        }
+        save(); render();
     }
 
     function applyImprevisto() {

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Study Hub Pro V6.8</title>
+    <title>Study Hub Pro V7.2 - Notes Edition</title>
     
     <link rel="apple-touch-icon" href="icon.png">
     <link rel="icon" type="image/png" href="icon.png">
@@ -24,21 +24,25 @@
         .inner-nav-item.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
         .hidden { display: none; }
         .btn { border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; width: 100%; margin-top: 5px; transition: opacity 0.2s; text-decoration: none; display: inline-block; text-align: center; box-sizing: border-box; }
-        .btn:hover { opacity: 0.9; }
-        
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; background: #ddd; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
         .calendar-header { background: #eee; text-align: center; padding: 5px; font-size: 0.7rem; font-weight: bold; }
         .calendar-day { background: white; min-height: 95px; padding: 5px; font-size: 0.65rem; position: relative; }
         .calendar-day.today { background: #fff9c4; border: 2px solid #fbc02d; }
         .day-number { font-weight: bold; margin-bottom: 3px; display: block; }
         .topic-tag { color: white; padding: 2px 4px; border-radius: 3px; margin-bottom: 2px; font-size: 0.55rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: block; }
-        
         .valutazione-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 10px; }
         .btn-val { font-size: 0.6rem; padding: 10px 2px; border-radius: 6px; border: none; color: white; cursor: pointer; font-weight: bold; }
-        input { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 1rem; }
+        input, textarea { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 1rem; font-family: inherit; }
+        textarea { resize: vertical; min-height: 60px; }
         .history-item { display: flex; flex-direction: column; padding: 10px; border-bottom: 1px solid #eee; gap: 5px; }
+        .history-controls { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; }
         .edit-sub-btn { cursor: pointer; font-size: 0.7rem; filter: grayscale(1); margin-left: 5px; }
         .link-badge { display: inline-block; background: #eee; padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; text-decoration: none; color: var(--accent); margin-top: 5px; font-weight: bold; }
+        
+        /* STILE NOTE A SCOMPARSA */
+        .notes-toggle { font-size: 0.75rem; color: var(--accent); cursor: pointer; font-weight: bold; margin-top: 8px; display: inline-block; }
+        .notes-content { margin-top: 8px; background: #f9f9f9; padding: 10px; border-radius: 8px; border: 1px dashed #ccc; }
+        .notes-textarea { font-size: 0.85rem; min-height: 80px; margin-bottom: 5px; background: white; }
     </style>
 </head>
 <body>
@@ -67,7 +71,8 @@
         <div class="card">
             <h3 id="newTopicTitle"></h3>
             <input type="text" id="topicInput" placeholder="">
-            <input type="text" id="linkInput" placeholder="Link Google Drive / PDF (opzionale)">
+            <input type="text" id="linkInput" placeholder="Link Google Drive (opzionale)">
+            <textarea id="noteInput" placeholder="Note iniziali o punti critici..."></textarea>
             <button class="btn" id="regBtn" onclick="addTopic()"></button>
         </div>
     </div>
@@ -106,41 +111,43 @@
 
     const translations = {
         it: {
-            welcomeTitle: "Benvenuta!", welcomeDesc: "Inizia aggiungendo una materia cliccando sul tasto + in alto.",
+            welcomeTitle: "Benvenuta!", welcomeDesc: "Aggiungi una materia cliccando sul tasto +.",
             imprevisto: "⚠️ GESTISCI IMPREVISTO (+1g)", study: "STUDIO", ripasso: "RIPASSO", calendar: "CALENDARIO", data: "DATI",
             newTopic: "Nuovo Argomento", placeholder: "Cosa hai studiato?", register: "Registra Studio",
-            dueToday: "Da Ripetere Oggi", done: "Tutto ripassato! Ottimo lavoro.", rifai: "Rifai", diff: "Difficile", buono: "Buono", facile: "Facile",
-            history: "Gestione Argomenti", backup: "💾 Backup e Ripristino", export: "Esporta Database (JSON)", import: "Importa Database",
-            next: "Prossimo ripasso: ", del: "Elimina", promptSub: "Nome della materia:",
+            dueToday: "Da Ripetere Oggi", done: "Tutto ripassato!", rifai: "Rifai", diff: "Difficile", buono: "Buono", facile: "Facile",
+            history: "Gestione Argomenti", backup: "💾 Backup", export: "Esporta JSON", import: "Importa JSON",
+            next: "Prossimo: ", del: "Elimina", editDate: "Sposta Data", promptSub: "Nome materia:",
             months: ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"],
             days: ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"],
-            openLink: "📂 Apri Materiale"
+            openLink: "📂 Apri Materiale", promptDate: "Data (GG/MM/AAAA):", notesLabel: "📝 Note", saveNotes: "Salva Note"
         },
         en: {
-            welcomeTitle: "Welcome!", welcomeDesc: "Start by adding a subject using the + button above.",
+            welcomeTitle: "Welcome!", welcomeDesc: "Add a subject using the + button.",
             imprevisto: "⚠️ MANAGE DELAY (+1d)", study: "STUDY", ripasso: "REVIEW", calendar: "CALENDAR", data: "DATA",
-            newTopic: "New Topic", placeholder: "What did you study?", register: "Register Study",
-            dueToday: "To Review Today", done: "All caught up! Great job.", rifai: "Again", diff: "Hard", buono: "Good", facile: "Easy",
-            history: "Topic Management", backup: "💾 Backup & Restore", export: "Export Database (JSON)", import: "Import Database",
-            next: "Next review: ", del: "Delete", promptSub: "Subject name:",
+            newTopic: "New Topic", placeholder: "Topic name?", register: "Register Study",
+            dueToday: "To Review Today", done: "All caught up!", rifai: "Again", diff: "Hard", buono: "Good", facile: "Easy",
+            history: "Topic Management", backup: "💾 Backup", export: "Export JSON", import: "Import JSON",
+            next: "Next: ", del: "Delete", editDate: "Move Date", promptSub: "Subject name:",
             months: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
             days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-            openLink: "📂 Open Material"
+            openLink: "📂 Open Material", promptDate: "Date (DD/MM/YYYY):", notesLabel: "📝 Notes", saveNotes: "Save Notes"
         }
     };
 
-    function save() { localStorage.setItem('multiSubjectDataV6', JSON.stringify(data)); }
-
-    function changeLang(val) { data.lang = val; save(); render(); }
-
-    function promptNewSubject() {
-        const name = prompt(translations[data.lang].promptSub);
-        if (name && !data.subjects[name]) {
-            const randomColor = defaultColors[Object.keys(data.subjects).length % defaultColors.length];
-            data.subjects[name] = { topics: [], color: randomColor };
-            data.activeSubject = name; save(); render();
-        }
+    function formatDisplayDate(dateStr) {
+        if (!dateStr) return "";
+        const parts = dateStr.split('-');
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
     }
+
+    function formatSaveDate(displayDate) {
+        const parts = displayDate.split('/');
+        if (parts.length !== 3) return null;
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    }
+
+    function save() { localStorage.setItem('multiSubjectDataV6', JSON.stringify(data)); }
+    function changeLang(val) { data.lang = val; save(); render(); }
 
     function render() {
         const lang = data.lang || 'it';
@@ -190,6 +197,20 @@
         renderRipasso(); renderHistory(); renderGridCalendar();
     }
 
+    function toggleNotes(topicId) {
+        const el = document.getElementById(`notes-box-${topicId}`);
+        el.classList.toggle('hidden');
+    }
+
+    function updateNote(topicId) {
+        const sub = data.subjects[data.activeSubject];
+        const topic = sub.topics.find(x => x.id === topicId);
+        const newNote = document.getElementById(`textarea-note-${topicId}`).value;
+        topic.notes = newNote;
+        save();
+        alert(data.lang === 'it' ? "Note salvate!" : "Notes saved!");
+    }
+
     function renderRipasso() {
         const lang = data.lang || 'it';
         const sub = data.subjects[data.activeSubject];
@@ -197,11 +218,17 @@
         const list = document.getElementById('ripassoList');
         const due = sub.topics.filter(t => t.next <= today);
         list.innerHTML = due.length ? "" : `<p style='text-align:center; color:grey; padding:20px;'>${translations[lang].done}</p>`;
+        
         due.forEach(topic => {
             const linkHtml = topic.link ? `<a href="${topic.link}" target="_blank" class="link-badge">${translations[lang].openLink}</a>` : '';
             list.innerHTML += `
                 <div class="card" style="border-left:5px solid ${sub.color}; margin-bottom:10px;">
                     <strong>${topic.name}</strong> ${linkHtml}
+                    <div class="notes-toggle" onclick="toggleNotes('${topic.id}')">${translations[lang].notesLabel}</div>
+                    <div id="notes-box-${topic.id}" class="notes-content hidden">
+                        <textarea id="textarea-note-${topic.id}" class="notes-textarea">${topic.notes || ""}</textarea>
+                        <button class="btn" style="background:var(--primary); padding:5px; font-size:0.7rem;" onclick="updateNote('${topic.id}')">${translations[lang].saveNotes}</button>
+                    </div>
                     <div class="valutazione-grid">
                         <button class="btn-val" style="background:#7f8c8d" onclick="rateTopic('${topic.id}', 0)">${translations[lang].rifai}</button>
                         <button class="btn-val" style="background:var(--danger)" onclick="rateTopic('${topic.id}', 1)">${translations[lang].diff}</button>
@@ -219,8 +246,11 @@
         list.innerHTML = sub.topics.map(t => `
             <div class="history-item">
                 <strong>${t.name}</strong>
-                <div style="font-size:0.7rem; color:grey">${translations[lang].next}${t.next.split('-').reverse().join('/')}</div>
-                <div style="text-align:right"><span style="color:red; cursor:pointer; font-size:0.7rem; font-weight:bold;" onclick="deleteTopic('${t.id}')">${translations[lang].del}</span></div>
+                <div style="font-size:0.7rem; color:grey">${translations[lang].next}${formatDisplayDate(t.next)}</div>
+                <div class="history-controls">
+                    <span style="color:var(--accent); cursor:pointer; font-size:0.7rem; font-weight:bold;" onclick="manualDateEdit('${t.id}')">${translations[lang].editDate}</span>
+                    <span style="color:red; cursor:pointer; font-size:0.7rem; font-weight:bold;" onclick="deleteTopic('${t.id}')">${translations[lang].del}</span>
+                </div>
             </div>
         `).join('') || "---";
     }
@@ -268,18 +298,53 @@
     function addTopic() {
         const val = document.getElementById('topicInput').value;
         const link = document.getElementById('linkInput').value;
+        const notes = document.getElementById('noteInput').value;
         if (!val) return;
-        data.subjects[data.activeSubject].topics.push({ id: Date.now().toString(), name: val, link: link, next: shiftDate(new Date().toISOString().split('T')[0], 1), interval: 1 });
+        data.subjects[data.activeSubject].topics.push({ 
+            id: Date.now().toString(), 
+            name: val, 
+            link: link, 
+            notes: notes,
+            next: shiftDate(new Date().toISOString().split('T')[0], 1), 
+            interval: 1 
+        });
+        document.getElementById('topicInput').value = "";
+        document.getElementById('linkInput').value = "";
+        document.getElementById('noteInput').value = "";
         save(); render();
     }
 
     function rateTopic(id, q) {
         const sub = data.subjects[data.activeSubject];
         const t = sub.topics.find(x => x.id === id);
-        const gaps = [0, 1, 3, 7];
-        t.interval = (q === 0) ? 1 : t.interval + gaps[q];
-        t.next = shiftDate(new Date().toISOString().split('T')[0], (q === 0 ? 0 : t.interval));
+        if (q === 0) { t.interval = 1; t.next = new Date().toISOString().split('T')[0]; } 
+        else if (q === 1) { t.interval = 1; t.next = shiftDate(new Date().toISOString().split('T')[0], 1); } 
+        else if (q === 2) { t.interval = (t.interval < 3) ? 3 : t.interval + 3; t.next = shiftDate(new Date().toISOString().split('T')[0], t.interval); } 
+        else if (q === 3) { t.interval = (t.interval < 7) ? 7 : t.interval + 7; t.next = shiftDate(new Date().toISOString().split('T')[0], t.interval); }
         save(); render();
+    }
+
+    function promptNewSubject() {
+        const name = prompt(translations[data.lang].promptSub);
+        if (name && !data.subjects[name]) {
+            const randomColor = defaultColors[Object.keys(data.subjects).length % defaultColors.length];
+            data.subjects[name] = { topics: [], color: randomColor };
+            data.activeSubject = name; save(); render();
+        }
+    }
+
+    function manualDateEdit(id) {
+        const lang = data.lang || 'it';
+        const sub = data.subjects[data.activeSubject];
+        const t = sub.topics.find(x => x.id === id);
+        const currentDisplay = formatDisplayDate(t.next);
+        const newDateDisplay = prompt(translations[lang].promptDate, currentDisplay);
+        if (newDateDisplay) {
+            const savedFormat = formatSaveDate(newDateDisplay);
+            if (savedFormat && !isNaN(new Date(savedFormat).getTime())) {
+                t.next = savedFormat; save(); render();
+            } else { alert(lang === 'it' ? "Formato non valido!" : "Invalid format!"); }
+        }
     }
 
     function shiftDate(dateStr, days) {
@@ -326,11 +391,9 @@
         save(); render();
     }
 
-    // Promemoria Backup in chiusura
     window.addEventListener('beforeunload', function (e) {
         if (Object.keys(data.subjects).length > 0) {
-            e.preventDefault();
-            e.returnValue = '';
+            e.preventDefault(); e.returnValue = '';
         }
     });
 

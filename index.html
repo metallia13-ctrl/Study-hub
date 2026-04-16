@@ -3,46 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Study Hub Pro V7.2 - Notes Edition</title>
+    <title>Study Hub Dark V7.3</title>
     
     <link rel="apple-touch-icon" href="icon.png">
     <link rel="icon" type="image/png" href="icon.png">
-    <meta name="theme-color" content="#2c3e50">
+    <meta name="theme-color" content="#1a1a1a">
 
     <style>
-        :root { --primary: #2c3e50; --accent: #3498db; --success: #27ae60; --danger: #e74c3c; --bg: #f4f7f6; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 0; color: var(--primary); }
-        .sidebar { background: white; border-bottom: 2px solid #ddd; padding: 10px; display: flex; gap: 10px; overflow-x: auto; position: sticky; top: 0; z-index: 1000; align-items: center; }
-        .subject-tab { padding: 8px 15px; border-radius: 20px; cursor: pointer; white-space: nowrap; font-weight: bold; font-size: 0.8rem; border: 2px solid transparent; display: flex; align-items: center; gap: 5px; transition: all 0.2s; }
-        .subject-tab.active { color: white; border-color: var(--primary); }
-        .add-subject-btn { background: var(--success); color: white; border-radius: 50%; width: 30px; height: 30px; border: none; cursor: pointer; font-weight: bold; flex-shrink: 0; }
-        .lang-select { position: absolute; right: 10px; background: white; border: 1px solid #ddd; border-radius: 5px; font-size: 0.7rem; padding: 4px; cursor: pointer; }
-        .container { padding: 10px; max-width: 800px; margin: auto; }
-        .card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px; }
-        .inner-nav { display: flex; justify-content: space-around; margin-bottom: 15px; border-bottom: 1px solid #ddd; }
-        .inner-nav-item { padding: 10px; cursor: pointer; font-size: 0.75rem; font-weight: bold; color: #7f8c8d; }
-        .inner-nav-item.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
-        .hidden { display: none; }
-        .btn { border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; width: 100%; margin-top: 5px; transition: opacity 0.2s; text-decoration: none; display: inline-block; text-align: center; box-sizing: border-box; }
-        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; background: #ddd; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
-        .calendar-header { background: #eee; text-align: center; padding: 5px; font-size: 0.7rem; font-weight: bold; }
-        .calendar-day { background: white; min-height: 95px; padding: 5px; font-size: 0.65rem; position: relative; }
-        .calendar-day.today { background: #fff9c4; border: 2px solid #fbc02d; }
-        .day-number { font-weight: bold; margin-bottom: 3px; display: block; }
-        .topic-tag { color: white; padding: 2px 4px; border-radius: 3px; margin-bottom: 2px; font-size: 0.55rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: block; }
-        .valutazione-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 10px; }
-        .btn-val { font-size: 0.6rem; padding: 10px 2px; border-radius: 6px; border: none; color: white; cursor: pointer; font-weight: bold; }
-        input, textarea { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 1rem; font-family: inherit; }
-        textarea { resize: vertical; min-height: 60px; }
-        .history-item { display: flex; flex-direction: column; padding: 10px; border-bottom: 1px solid #eee; gap: 5px; }
-        .history-controls { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; }
-        .edit-sub-btn { cursor: pointer; font-size: 0.7rem; filter: grayscale(1); margin-left: 5px; }
-        .link-badge { display: inline-block; background: #eee; padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; text-decoration: none; color: var(--accent); margin-top: 5px; font-weight: bold; }
+        :root { 
+            --bg: #121212; 
+            --card-bg: #1e1e1e; 
+            --primary: #bb86fc; 
+            --accent: #03dac6; 
+            --text: #e0e0e0; 
+            --text-dim: #a0a0a0;
+            --danger: #cf6679;
+            --success: #4caf50;
+            --border: #333;
+        }
         
-        /* STILE NOTE A SCOMPARSA */
-        .notes-toggle { font-size: 0.75rem; color: var(--accent); cursor: pointer; font-weight: bold; margin-top: 8px; display: inline-block; }
-        .notes-content { margin-top: 8px; background: #f9f9f9; padding: 10px; border-radius: 8px; border: 1px dashed #ccc; }
-        .notes-textarea { font-size: 0.85rem; min-height: 80px; margin-bottom: 5px; background: white; }
+        body { font-family: 'Segoe UI', Roboto, sans-serif; background: var(--bg); margin: 0; padding: 0; color: var(--text); }
+        
+        .sidebar { background: #1a1a1a; border-bottom: 1px solid var(--border); padding: 12px; display: flex; gap: 10px; overflow-x: auto; position: sticky; top: 0; z-index: 1000; align-items: center; }
+        
+        .subject-tab { padding: 8px 16px; border-radius: 20px; cursor: pointer; white-space: nowrap; font-weight: bold; font-size: 0.85rem; border: 1px solid transparent; display: flex; align-items: center; gap: 6px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); color: var(--text-dim); background: #2a2a2a; }
+        .subject-tab.active { color: white; border-color: var(--primary); box-shadow: 0 0 10px rgba(187, 134, 252, 0.2); }
+        
+        .add-subject-btn { background: var(--primary); color: #000; border-radius: 50%; width: 32px; height: 32px; border: none; cursor: pointer; font-weight: bold; flex-shrink: 0; }
+        .lang-select { position: absolute; right: 12px; background: #2a2a2a; color: white; border: 1px solid var(--border); border-radius: 6px; font-size: 0.75rem; padding: 5px; cursor: pointer; }
+        
+        .container { padding: 16px; max-width: 850px; margin: auto; }
+        .card { background: var(--card-bg); border-radius: 16px; padding: 20px; border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.5); margin-bottom: 20px; }
+        
+        .inner-nav { display: flex; justify-content: space-around; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+        .inner-nav-item { padding: 12px; cursor: pointer; font-size: 0.8rem; font-weight: bold; color: var(--text-dim); transition: 0.3s; text-transform: uppercase; letter-spacing: 1px; }
+        .inner-nav-item.active { color: var(--primary); border-bottom: 3px solid var(--primary); }
+        
+        .hidden { display: none; }
+        
+        .btn { border: none; padding: 14px; border-radius: 10px; cursor: pointer; font-weight: bold; color: white; width: 100%; margin-top: 8px; transition: 0.2s; text-decoration: none; display: inline-block; text-align: center; box-sizing: border-box; }
+        .btn:hover { filter: brightness(1.2); transform: translateY(-1px); }
+        
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+        .calendar-header { background: #1a1a1a; text-align: center; padding: 8px; font-size: 0.75rem; color: var(--primary); font-weight: bold; }
+        .calendar-day { background: var(--card-bg); min-height: 100px; padding: 6px; font-size: 0.7rem; position: relative; }
+        .calendar-day.today { background: #2c2c2c; box-shadow: inset 0 0 5px var(--primary); }
+        .day-number { font-weight: bold; color: var(--text-dim); margin-bottom: 4px; display: block; }
+        .topic-tag { color: white; padding: 3px 5px; border-radius: 4px; margin-bottom: 3px; font-size: 0.6rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: block; border-left: 3px solid rgba(0,0,0,0.3); }
+        
+        .valutazione-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 15px; }
+        .btn-val { font-size: 0.7rem; padding: 12px 4px; border-radius: 8px; border: none; color: white; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        
+        input, textarea { width: 100%; padding: 14px; margin-bottom: 12px; border-radius: 10px; border: 1px solid var(--border); background: #2a2a2a; color: white; box-sizing: border-box; font-size: 1rem; }
+        input:focus, textarea:focus { border-color: var(--primary); outline: none; }
+        
+        .notes-toggle { font-size: 0.8rem; color: var(--accent); cursor: pointer; font-weight: bold; margin-top: 10px; display: inline-block; padding: 4px 8px; border-radius: 6px; background: rgba(3, 218, 198, 0.1); }
+        .notes-content { margin-top: 10px; background: #252525; padding: 12px; border-radius: 10px; border: 1px solid var(--border); }
+        .notes-textarea { font-size: 0.9rem; min-height: 90px; margin-bottom: 8px; background: #1a1a1a; border-color: #444; }
+        
+        .history-item { border-bottom: 1px solid var(--border); padding: 15px 0; }
+        .history-controls { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+        .edit-sub-btn { cursor: pointer; font-size: 0.8rem; margin-left: 8px; color: var(--text-dim); }
+        .link-badge { display: inline-block; background: rgba(3, 218, 198, 0.1); padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; text-decoration: none; color: var(--accent); margin-top: 8px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -58,7 +80,7 @@
 <div id="appContent" class="container"></div>
 
 <div id="subjectTemplate" class="hidden">
-    <button class="btn" style="background:var(--danger); margin-bottom:15px;" id="btnImprevisto" onclick="applyImprevisto()">⚠️</button>
+    <button class="btn" style="background:var(--danger); box-shadow: 0 4px 14px rgba(207, 102, 121, 0.3);" id="btnImprevisto" onclick="applyImprevisto()">⚠️</button>
     
     <div class="inner-nav">
         <div class="inner-nav-item active" id="navStudy" onclick="switchSubTab(this, 'study')"></div>
@@ -69,36 +91,36 @@
 
     <div class="sub-tab-content" id="tab-study">
         <div class="card">
-            <h3 id="newTopicTitle"></h3>
-            <input type="text" id="topicInput" placeholder="">
-            <input type="text" id="linkInput" placeholder="Link Google Drive (opzionale)">
-            <textarea id="noteInput" placeholder="Note iniziali o punti critici..."></textarea>
+            <h3 id="newTopicTitle" style="color: var(--primary); margin-top: 0;"></h3>
+            <input type="text" id="topicInput">
+            <input type="text" id="linkInput" placeholder="URL Google Drive">
+            <textarea id="noteInput"></textarea>
             <button class="btn" id="regBtn" onclick="addTopic()"></button>
         </div>
     </div>
 
     <div class="sub-tab-content hidden" id="tab-ripasso">
         <div class="card">
-            <h3 id="dueTodayTitle"></h3>
+            <h3 id="dueTodayTitle" style="color: var(--accent); margin-top: 0;"></h3>
             <div id="ripassoList"></div>
         </div>
     </div>
 
     <div class="sub-tab-content hidden" id="tab-calendar">
         <div class="card" style="padding: 10px; overflow-x: auto;">
-            <h3 id="calendarMonthTitle" style="text-align:center; margin-bottom:10px;"></h3>
+            <h3 id="calendarMonthTitle" style="text-align:center; margin-bottom:15px; color: var(--primary);"></h3>
             <div class="calendar-grid" id="calendarGrid"></div>
         </div>
     </div>
 
     <div class="sub-tab-content hidden" id="tab-history">
         <div class="card">
-            <h3 id="historyTitle"></h3>
+            <h3 id="historyTitle" style="color: var(--primary); margin-top: 0;"></h3>
             <div id="historyList"></div>
         </div>
         <div class="card">
-            <h3 id="backupTitle"></h3>
-            <button class="btn" style="background:#7f8c8d" id="btnExport" onclick="exportData()"></button>
+            <h3 id="backupTitle" style="color: var(--text-dim); font-size: 1rem;"></h3>
+            <button class="btn" style="background:#444" id="btnExport" onclick="exportData()"></button>
             <button class="btn" style="background:var(--success); margin-top:10px;" id="btnImport" onclick="document.getElementById('importFile').click()"></button>
             <input type="file" id="importFile" class="hidden" accept=".json" onchange="importData(event)">
         </div>
@@ -107,30 +129,30 @@
 
 <script>
     let data = JSON.parse(localStorage.getItem('multiSubjectDataV6')) || { subjects: {}, activeSubject: null, lang: 'it', activeTab: 'study' };
-    const defaultColors = ['#3498db', '#27ae60', '#9b59b6', '#e67e22', '#1abc9c', '#e74c3c'];
+    const defaultColors = ['#bb86fc', '#03dac6', '#ffb74d', '#4fc3f7', '#a5d6a7', '#ef9a9a'];
 
     const translations = {
         it: {
-            welcomeTitle: "Benvenuta!", welcomeDesc: "Aggiungi una materia cliccando sul tasto +.",
+            welcomeTitle: "Benvenuta!", welcomeDesc: "Crea una materia per iniziare.",
             imprevisto: "⚠️ GESTISCI IMPREVISTO (+1g)", study: "STUDIO", ripasso: "RIPASSO", calendar: "CALENDARIO", data: "DATI",
-            newTopic: "Nuovo Argomento", placeholder: "Cosa hai studiato?", register: "Registra Studio",
-            dueToday: "Da Ripetere Oggi", done: "Tutto ripassato!", rifai: "Rifai", diff: "Difficile", buono: "Buono", facile: "Facile",
-            history: "Gestione Argomenti", backup: "💾 Backup", export: "Esporta JSON", import: "Importa JSON",
-            next: "Prossimo: ", del: "Elimina", editDate: "Sposta Data", promptSub: "Nome materia:",
+            newTopic: "Nuovo Argomento", placeholder: "Nome argomento", register: "Registra Studio",
+            dueToday: "Da Ripetere Oggi", done: "Nessun ripasso oggi!", rifai: "Rifai", diff: "Diff.", buono: "Buono", facile: "Facile",
+            history: "Archivio Argomenti", backup: "💾 Backup", export: "Esporta JSON", import: "Importa JSON",
+            next: "Prossimo: ", del: "Elimina", editDate: "Sposta Data", promptSub: "Materia:",
             months: ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"],
             days: ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"],
-            openLink: "📂 Apri Materiale", promptDate: "Data (GG/MM/AAAA):", notesLabel: "📝 Note", saveNotes: "Salva Note"
+            openLink: "📂 Documenti", promptDate: "Data (GG/MM/AAAA):", notesLabel: "📝 Note", saveNotes: "Salva Note", notePlaceholder: "Appunti critici..."
         },
         en: {
-            welcomeTitle: "Welcome!", welcomeDesc: "Add a subject using the + button.",
+            welcomeTitle: "Welcome!", welcomeDesc: "Add a subject to start.",
             imprevisto: "⚠️ MANAGE DELAY (+1d)", study: "STUDY", ripasso: "REVIEW", calendar: "CALENDAR", data: "DATA",
-            newTopic: "New Topic", placeholder: "Topic name?", register: "Register Study",
-            dueToday: "To Review Today", done: "All caught up!", rifai: "Again", diff: "Hard", buono: "Good", facile: "Easy",
-            history: "Topic Management", backup: "💾 Backup", export: "Export JSON", import: "Import JSON",
-            next: "Next: ", del: "Delete", editDate: "Move Date", promptSub: "Subject name:",
+            newTopic: "New Topic", placeholder: "Topic name", register: "Register Study",
+            dueToday: "Review Today", done: "All caught up!", rifai: "Again", diff: "Hard", buono: "Good", facile: "Easy",
+            history: "Topic Archive", backup: "💾 Backup", export: "Export JSON", import: "Import JSON",
+            next: "Next: ", del: "Delete", editDate: "Move Date", promptSub: "Subject:",
             months: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
             days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-            openLink: "📂 Open Material", promptDate: "Date (DD/MM/YYYY):", notesLabel: "📝 Notes", saveNotes: "Save Notes"
+            openLink: "📂 Docs", promptDate: "Date (DD/MM/YYYY):", notesLabel: "📝 Notes", saveNotes: "Save Notes", notePlaceholder: "Critical notes..."
         }
     };
 
@@ -159,8 +181,7 @@
             const sData = data.subjects[sub];
             const btn = document.createElement('div');
             btn.className = `subject-tab ${data.activeSubject === sub ? 'active' : ''}`;
-            btn.style.backgroundColor = data.activeSubject === sub ? sData.color : '#eee';
-            btn.style.color = data.activeSubject === sub ? 'white' : '#777';
+            if(data.activeSubject === sub) btn.style.backgroundColor = sData.color + '33';
             btn.innerHTML = `${sub} <span class="edit-sub-btn" onclick="editSubject('${sub}')">⚙️</span>`;
             btn.onclick = (e) => { if(e.target.className !== 'edit-sub-btn') { data.activeSubject = sub; save(); render(); }};
             bar.insertBefore(btn, document.getElementById('langPicker'));
@@ -185,6 +206,7 @@
         document.getElementById('navData').innerText = translations[lang].data;
         document.getElementById('newTopicTitle').innerText = translations[lang].newTopic;
         document.getElementById('topicInput').placeholder = translations[lang].placeholder;
+        document.getElementById('noteInput').placeholder = translations[lang].notePlaceholder;
         document.getElementById('regBtn').innerText = translations[lang].register;
         document.getElementById('regBtn').style.backgroundColor = sub.color;
         document.getElementById('dueTodayTitle').innerText = translations[lang].dueToday;
@@ -197,18 +219,18 @@
         renderRipasso(); renderHistory(); renderGridCalendar();
     }
 
-    function toggleNotes(topicId) {
-        const el = document.getElementById(`notes-box-${topicId}`);
+    function toggleNotes(topicId, section) {
+        const el = document.getElementById(`notes-box-${section}-${topicId}`);
         el.classList.toggle('hidden');
     }
 
-    function updateNote(topicId) {
+    function updateNote(topicId, section) {
         const sub = data.subjects[data.activeSubject];
         const topic = sub.topics.find(x => x.id === topicId);
-        const newNote = document.getElementById(`textarea-note-${topicId}`).value;
+        const newNote = document.getElementById(`textarea-note-${section}-${topicId}`).value;
         topic.notes = newNote;
         save();
-        alert(data.lang === 'it' ? "Note salvate!" : "Notes saved!");
+        alert(data.lang === 'it' ? "Salvate!" : "Saved!");
     }
 
     function renderRipasso() {
@@ -222,17 +244,17 @@
         due.forEach(topic => {
             const linkHtml = topic.link ? `<a href="${topic.link}" target="_blank" class="link-badge">${translations[lang].openLink}</a>` : '';
             list.innerHTML += `
-                <div class="card" style="border-left:5px solid ${sub.color}; margin-bottom:10px;">
-                    <strong>${topic.name}</strong> ${linkHtml}
-                    <div class="notes-toggle" onclick="toggleNotes('${topic.id}')">${translations[lang].notesLabel}</div>
-                    <div id="notes-box-${topic.id}" class="notes-content hidden">
-                        <textarea id="textarea-note-${topic.id}" class="notes-textarea">${topic.notes || ""}</textarea>
-                        <button class="btn" style="background:var(--primary); padding:5px; font-size:0.7rem;" onclick="updateNote('${topic.id}')">${translations[lang].saveNotes}</button>
+                <div class="card" style="border-left:5px solid ${sub.color};">
+                    <div style="font-weight:bold; font-size:1.1rem;">${topic.name}</div> ${linkHtml}
+                    <div class="notes-toggle" onclick="toggleNotes('${topic.id}', 'rip')">${translations[lang].notesLabel}</div>
+                    <div id="notes-box-rip-${topic.id}" class="notes-content hidden">
+                        <textarea id="textarea-note-rip-${topic.id}" class="notes-textarea">${topic.notes || ""}</textarea>
+                        <button class="btn" style="background:var(--primary); color:#000; padding:8px;" onclick="updateNote('${topic.id}', 'rip')">${translations[lang].saveNotes}</button>
                     </div>
                     <div class="valutazione-grid">
-                        <button class="btn-val" style="background:#7f8c8d" onclick="rateTopic('${topic.id}', 0)">${translations[lang].rifai}</button>
+                        <button class="btn-val" style="background:#555" onclick="rateTopic('${topic.id}', 0)">${translations[lang].rifai}</button>
                         <button class="btn-val" style="background:var(--danger)" onclick="rateTopic('${topic.id}', 1)">${translations[lang].diff}</button>
-                        <button class="btn-val" style="background:var(--accent)" onclick="rateTopic('${topic.id}', 2)">${translations[lang].buono}</button>
+                        <button class="btn-val" style="background:var(--accent); color:#000" onclick="rateTopic('${topic.id}', 2)">${translations[lang].buono}</button>
                         <button class="btn-val" style="background:var(--success)" onclick="rateTopic('${topic.id}', 3)">${translations[lang].facile}</button>
                     </div>
                 </div>`;
@@ -243,16 +265,24 @@
         const lang = data.lang || 'it';
         const sub = data.subjects[data.activeSubject];
         const list = document.getElementById('historyList');
-        list.innerHTML = sub.topics.map(t => `
-            <div class="history-item">
-                <strong>${t.name}</strong>
-                <div style="font-size:0.7rem; color:grey">${translations[lang].next}${formatDisplayDate(t.next)}</div>
-                <div class="history-controls">
-                    <span style="color:var(--accent); cursor:pointer; font-size:0.7rem; font-weight:bold;" onclick="manualDateEdit('${t.id}')">${translations[lang].editDate}</span>
-                    <span style="color:red; cursor:pointer; font-size:0.7rem; font-weight:bold;" onclick="deleteTopic('${t.id}')">${translations[lang].del}</span>
-                </div>
-            </div>
-        `).join('') || "---";
+        list.innerHTML = "";
+        
+        sub.topics.forEach(t => {
+            list.innerHTML += `
+                <div class="history-item">
+                    <div style="font-weight:bold;">${t.name}</div>
+                    <div style="font-size:0.75rem; color:var(--text-dim); margin-top:4px;">${translations[lang].next}${formatDisplayDate(t.next)}</div>
+                    <div class="notes-toggle" onclick="toggleNotes('${t.id}', 'hist')">${translations[lang].notesLabel}</div>
+                    <div id="notes-box-hist-${t.id}" class="notes-content hidden">
+                        <textarea id="textarea-note-hist-${t.id}" class="notes-textarea">${t.notes || ""}</textarea>
+                        <button class="btn" style="background:var(--primary); color:#000; padding:8px;" onclick="updateNote('${t.id}', 'hist')">${translations[lang].saveNotes}</button>
+                    </div>
+                    <div class="history-controls">
+                        <span style="color:var(--accent); cursor:pointer; font-size:0.75rem;" onclick="manualDateEdit('${t.id}')">${translations[lang].editDate}</span>
+                        <span style="color:var(--danger); cursor:pointer; font-size:0.75rem;" onclick="deleteTopic('${t.id}')">${translations[lang].del}</span>
+                    </div>
+                </div>`;
+        });
     }
 
     function renderGridCalendar() {
@@ -287,11 +317,10 @@
     function switchSubTab(el, type) {
         data.activeTab = type;
         document.querySelectorAll('.inner-nav-item').forEach(i => i.classList.remove('active'));
-        const activeItem = Array.from(document.querySelectorAll('.inner-nav-item')).find(i => i.id === 'nav' + type.charAt(0).toUpperCase() + type.slice(1).replace('history','Data'));
-        if(activeItem) activeItem.classList.add('active');
+        const idMap = {study: 'navStudy', ripasso: 'navRipasso', calendar: 'navCal', history: 'navData'};
+        if(document.getElementById(idMap[type])) document.getElementById(idMap[type]).classList.add('active');
         document.querySelectorAll('.sub-tab-content').forEach(c => c.classList.add('hidden'));
-        const activeTab = document.getElementById(`tab-${type}`);
-        if(activeTab) activeTab.classList.remove('hidden');
+        if(document.getElementById(`tab-${type}`)) document.getElementById(`tab-${type}`).classList.remove('hidden');
         if(type === 'calendar') renderGridCalendar();
     }
 
@@ -301,16 +330,9 @@
         const notes = document.getElementById('noteInput').value;
         if (!val) return;
         data.subjects[data.activeSubject].topics.push({ 
-            id: Date.now().toString(), 
-            name: val, 
-            link: link, 
-            notes: notes,
-            next: shiftDate(new Date().toISOString().split('T')[0], 1), 
-            interval: 1 
+            id: Date.now().toString(), name: val, link: link, notes: notes,
+            next: shiftDate(new Date().toISOString().split('T')[0], 1), interval: 1 
         });
-        document.getElementById('topicInput').value = "";
-        document.getElementById('linkInput').value = "";
-        document.getElementById('noteInput').value = "";
         save(); render();
     }
 
@@ -327,8 +349,8 @@
     function promptNewSubject() {
         const name = prompt(translations[data.lang].promptSub);
         if (name && !data.subjects[name]) {
-            const randomColor = defaultColors[Object.keys(data.subjects).length % defaultColors.length];
-            data.subjects[name] = { topics: [], color: randomColor };
+            const color = defaultColors[Object.keys(data.subjects).length % defaultColors.length];
+            data.subjects[name] = { topics: [], color: color };
             data.activeSubject = name; save(); render();
         }
     }
@@ -337,13 +359,12 @@
         const lang = data.lang || 'it';
         const sub = data.subjects[data.activeSubject];
         const t = sub.topics.find(x => x.id === id);
-        const currentDisplay = formatDisplayDate(t.next);
-        const newDateDisplay = prompt(translations[lang].promptDate, currentDisplay);
+        const newDateDisplay = prompt(translations[lang].promptDate, formatDisplayDate(t.next));
         if (newDateDisplay) {
             const savedFormat = formatSaveDate(newDateDisplay);
             if (savedFormat && !isNaN(new Date(savedFormat).getTime())) {
                 t.next = savedFormat; save(); render();
-            } else { alert(lang === 'it' ? "Formato non valido!" : "Invalid format!"); }
+            } else { alert("Formato Errato!"); }
         }
     }
 
@@ -354,8 +375,7 @@
 
     function exportData() {
         const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
         a.download = `backup_med_hub.json`; a.click();
     }
 
@@ -366,7 +386,7 @@
     }
 
     function deleteTopic(id) {
-        if(confirm(data.lang === 'it' ? "Eliminare?" : "Delete?")) {
+        if(confirm("Eliminare?")) {
             data.subjects[data.activeSubject].topics = data.subjects[data.activeSubject].topics.filter(x => x.id !== id);
             save(); render();
         }
@@ -374,9 +394,9 @@
 
     function editSubject(oldName) {
         event.stopPropagation();
-        const action = prompt(data.lang === 'it' ? "1. Colore\n2. Elimina" : "1. Color\n2. Delete", "1");
+        const action = prompt("1. Colore\n2. Elimina", "1");
         if(action === "1") {
-            const newColor = prompt("HEX color:", data.subjects[oldName].color);
+            const newColor = prompt("Colore (HEX):", data.subjects[oldName].color);
             if(newColor) data.subjects[oldName].color = newColor;
         } else if(action === "2") {
             if(confirm(oldName + "?")) { delete data.subjects[oldName]; data.activeSubject = Object.keys(data.subjects)[0] || null; }
@@ -392,9 +412,7 @@
     }
 
     window.addEventListener('beforeunload', function (e) {
-        if (Object.keys(data.subjects).length > 0) {
-            e.preventDefault(); e.returnValue = '';
-        }
+        if (Object.keys(data.subjects).length > 0) { e.preventDefault(); e.returnValue = ''; }
     });
 
     render();

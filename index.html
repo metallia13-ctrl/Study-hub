@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Study Hub Ultra V10.0</title>
+    <title>Study Hub Ultra V10.1</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root { 
@@ -30,21 +30,21 @@
         .inner-nav-item.active { color: var(--primary); border-bottom: 4px solid var(--primary); }
         .agenda-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
         .nav-arrow { cursor: pointer; font-size: 1.8rem; color: var(--primary); font-weight: bold; padding: 0 15px; user-select: none; }
-        .week-label { font-weight: 700; color: var(--primary); font-size: 1.3rem; text-transform: uppercase; }
+        .week-label { font-weight: 700; color: var(--primary); font-size: 1.1rem; text-transform: uppercase; }
         .day-section { margin-bottom: 30px; }
-        .day-title { font-weight: 700; font-size: 1.4rem; color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: baseline; }
-        .topic-card { background: #121e2a; border-radius: 12px; padding: 15px; margin-bottom: 12px; border-left: 6px solid; border: 1px solid #1c2b36; border-left-width: 6px; }
-        .topic-name { font-weight: 700; font-size: 1.2rem; display: block; margin-bottom: 4px; }
-        .subject-name { font-style: italic; font-size: 0.95rem; opacity: 0.8; }
-        .btn { border: none; padding: 18px; border-radius: 12px; cursor: pointer; font-weight: 700; color: #050a0f; width: 100%; margin-top: 10px; font-size: 1.2rem; background: var(--primary); text-transform: uppercase; }
+        .day-title { font-weight: 700; font-size: 1.3rem; color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: baseline; }
+        .topic-card { background: #121e2a; border-radius: 12px; padding: 15px; margin-bottom: 12px; border-left: 6px solid; border: 1px solid #1c2b36; }
+        .topic-name { font-weight: 700; font-size: 1.1rem; display: block; margin-bottom: 4px; }
+        .subject-name { font-style: italic; font-size: 0.9rem; opacity: 0.8; }
+        .btn { border: none; padding: 18px; border-radius: 12px; cursor: pointer; font-weight: 700; color: #050a0f; width: 100%; margin-top: 10px; font-size: 1.1rem; background: var(--primary); text-transform: uppercase; }
         .btn-small { padding: 10px 20px; font-size: 0.85rem; width: auto; margin: 0 auto 20px auto; display: block; }
         .hidden { display: none !important; }
-        input, textarea { width: 100%; padding: 18px; margin-bottom: 15px; border-radius: 12px; border: 2px solid var(--border); background: #020406; color: #fff; font-size: 1.2rem; font-family: 'Roboto'; box-sizing: border-box; }
-        .notes-toggle { color: var(--primary); cursor: pointer; font-weight: 700; font-size: 1.1rem; margin: 15px 0; display: inline-block; text-decoration: underline; }
+        input, textarea { width: 100%; padding: 18px; margin-bottom: 15px; border-radius: 12px; border: 2px solid var(--border); background: #020406; color: #fff; font-size: 1.1rem; font-family: 'Roboto'; box-sizing: border-box; }
+        .notes-toggle { color: var(--primary); cursor: pointer; font-weight: 700; font-size: 1rem; margin: 15px 0; display: inline-block; text-decoration: underline; }
         .notes-content { background: #020406; padding: 15px; border-radius: 12px; border: 1px solid var(--primary); margin: 15px 0; }
         .triage-box { display: flex; gap: 8px; margin-bottom: 15px; }
-        .t-dot { flex: 1; padding: 10px; border-radius: 8px; font-size: 0.75rem; font-weight: bold; text-align: center; color: #000; opacity: 0.35; cursor: pointer; transition: 0.2s; }
-        .t-dot.active { opacity: 1; border: 2px solid white; transform: scale(1.05); }
+        .t-dot { flex: 1; padding: 10px; border-radius: 8px; font-size: 0.75rem; font-weight: bold; text-align: center; color: #000; opacity: 0.35; cursor: pointer; }
+        .t-dot.active { opacity: 1; border: 2px solid white; }
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 5000; display: flex; align-items: center; justify-content: center; }
         .countdown-info { text-align: center; background: rgba(162, 210, 255, 0.1); padding: 15px; border-radius: 15px; margin-bottom: 20px; border: 1px dashed var(--primary); cursor: pointer; }
         @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
@@ -136,7 +136,7 @@
                 <div class="card">
                     <div class="agenda-header">
                         <div class="nav-arrow" onclick="changeWeek(-1)">❮</div>
-                        <div class="week-label" id="weekDisplay">...</div>
+                        <div class="week-label" id="weekDisplay">CARICAMENTO...</div>
                         <div class="nav-arrow" onclick="changeWeek(1)">❯</div>
                     </div>
                     <div id="agendaList"></div>
@@ -151,20 +151,24 @@
         function updateAgendaList(isGlobal) {
             const list = document.getElementById('agendaList');
             if(!list) return;
-            const now = new Date();
-            now.setHours(0,0,0,0);
-            const start = new Date(now);
-            const currentDay = now.getDay() === 0 ? 7 : now.getDay();
-            start.setDate(now.getDate() - (currentDay - 1) + (weekOffset * 7));
             
-            document.getElementById('weekDisplay').innerText = `DAL ${start.getDate()}/${start.getMonth()+1}`;
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            
+            const dayOfWeek = today.getDay() === 0 ? 7 : today.getDay();
+            const monday = new Date(today);
+            monday.setDate(today.getDate() - (dayOfWeek - 1) + (weekOffset * 7));
+
+            document.getElementById('weekDisplay').innerText = `DAL ${monday.getDate()}/${monday.getMonth()+1}`;
             list.innerHTML = "";
             const dayNames = ["LUNEDÌ", "MARTEDÌ", "MERCOLEDÌ", "GIOVEDÌ", "VENERDÌ", "SABATO", "DOMENICA"];
 
             for (let i = 0; i < 7; i++) {
-                const d = new Date(start); d.setDate(start.getDate() + i);
-                const dStr = d.toISOString().split('T')[0];
+                const currentDay = new Date(monday);
+                currentDay.setDate(monday.getDate() + i);
+                const dStr = currentDay.toISOString().split('T')[0];
                 let html = "";
+                
                 const subs = isGlobal ? Object.keys(data.subjects) : [data.activeSub];
                 
                 subs.forEach(s => {
@@ -175,9 +179,16 @@
                         }
                     });
                 });
+                
                 (data.externalEvents || []).forEach(e => { if(e.date === dStr) html += `<div class="topic-card external-event">🏛️ ${e.title}</div>`; });
 
-                list.innerHTML += `<div class="day-section"><div class="day-title" style="${dStr === now.toISOString().split('T')[0] ? 'color:white; border-bottom:2px solid var(--primary)' : ''}">${d.getDate()} ${d.toLocaleDateString('it-IT',{month:'short'}).toUpperCase()} <span style="font-size:0.8rem; opacity:0.5; margin-left:10px;">${dayNames[i]}</span></div>${html || '<p style="opacity:0.2; font-size:0.9rem; margin-left:10px;">NESSUNA ATTIVITÀ</p>'}</div>`;
+                list.innerHTML += `<div class="day-section">
+                    <div class="day-title" style="${dStr === today.toISOString().split('T')[0] ? 'color:white; border-bottom:2px solid var(--primary)' : ''}">
+                        ${currentDay.getDate()} ${currentDay.toLocaleDateString('it-IT',{month:'short'}).toUpperCase()} 
+                        <span style="font-size:0.8rem; opacity:0.5; margin-left:10px;">${dayNames[i]}</span>
+                    </div>
+                    ${html || '<p style="opacity:0.2; font-size:0.9rem; margin-left:10px;">NESSUNA ATTIVITÀ</p>'}
+                </div>`;
             }
         }
 
@@ -226,7 +237,12 @@
                     target.innerHTML += `<div class="card" style="border-left:8px solid ${border}"><h2>${t.name}</h2><div class="notes-toggle" onclick="toggleNotes('${t.id}')">VISUALIZZA NOTE</div><div id="nb-${t.id}" class="notes-content hidden"><textarea id="nt-${t.id}">${t.notes || ""}</textarea><button class="btn" style="padding:10px; font-size:1rem" onclick="saveNote('${t.id}')">SALVA NOTE</button></div><div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:15px"><button class="btn" style="background:#333; color:white" onclick="rate('${t.id}', 1)">NON NOTO</button><button class="btn" style="background:#007bff; color:white" onclick="rate('${t.id}', 2)">INCERTO</button><button class="btn" style="background:var(--success); color:black" onclick="rate('${t.id}', 3)">ACQUISITO</button></div></div>`;
                 });
             } else if (type === 'calendar') {
-                target.innerHTML = `<div class="agenda-header"><div class="nav-arrow" onclick="changeWeek(-1)">❮</div><div class="week-label" id="subWeekDisplay">...</div><div class="nav-arrow" onclick="changeWeek(1)">❯</div></div><div id="subAgendaWeekly"></div>`;
+                target.innerHTML = `<div class="agenda-header">
+                    <div class="nav-arrow" onclick="changeWeek(-1)">❮</div>
+                    <div class="week-label" id="subWeekDisplay">...</div>
+                    <div class="nav-arrow" onclick="changeWeek(1)">❯</div>
+                </div>
+                <div id="subAgendaWeekly"></div>`;
                 updateAgendaList(false);
             } else if (type === 'history') {
                 target.innerHTML = sub.topics.map(t => `
@@ -269,64 +285,4 @@
         function addTopic() {
             const name = document.getElementById('inT').value;
             if(!name) return;
-            data.subjects[data.activeSub].topics.push({ id: Date.now().toString(), name, notes: document.getElementById('inN').value, next: shiftDate(new Date(), 1), interval: 1, triage: data.triage, fails: 0 });
-            save(); setSubTab('study'); showToast("Registrato");
-        }
-
-        function updateTriageInHistory(topicId, newTriage) {
-            const topic = data.subjects[data.activeSub].topics.find(x => x.id === topicId);
-            topic.triage = newTriage;
-            save(); render(); showToast("Triage aggiornato");
-        }
-
-        function rate(id, q) {
-            const t = data.subjects[data.activeSub].topics.find(x => x.id === id);
-            if(q === 1) { t.interval = 1; t.fails = (t.fails || 0) + 1; }
-            else { t.interval = q === 2 ? t.interval + 3 : t.interval + 7; }
-            t.next = shiftDate(new Date(), t.interval);
-            save(); render();
-        }
-
-        function openDateModal(id) { document.getElementById('editTopicId').value = id; openModal('modalEditDate'); }
-        function confirmManualDate() {
-            const id = document.getElementById('editTopicId').value;
-            const val = document.getElementById('inNewDate').value;
-            if(!val.includes('/')) return;
-            const p = val.split('/');
-            data.subjects[data.activeSub].topics.find(x => x.id === id).next = `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
-            save(); closeModal('modalEditDate'); render();
-        }
-
-        function addExternalEvent() {
-            const title = document.getElementById('extTitle').value;
-            const d = document.getElementById('extDate').value;
-            if(!title || !d) return;
-            const p = d.split('/');
-            data.externalEvents.push({ title, date: `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}` });
-            save(); closeModal('modalExt'); render();
-        }
-
-        function renderColdSpots() {
-            const spots = [];
-            Object.keys(data.subjects).forEach(s => { data.subjects[s].topics.forEach(t => { if(t.fails >= 2) spots.push({n: t.name, s: s}); }); });
-            const sec = document.getElementById('coldSpotsSection');
-            if(sec && spots.length > 0) {
-                sec.innerHTML = `<div class="card" style="border: 1px solid var(--danger)"><h3 style="color:var(--danger); margin:0 0 10px 0">CRITICITÀ RILEVATE</h3>${spots.map(x => `<div class="topic-card" style="border-left-color:red"><b>${x.n}</b> <small>(${x.s})</small></div>`).join('')}</div>`;
-            }
-        }
-
-        function deleteTopic(id) { if(confirm("ELIMINARE?")) { data.subjects[data.activeSub].topics = data.subjects[data.activeSub].topics.filter(x => x.id !== id); save(); render(); }}
-        function setTriage(n) { data.triage = n; setSubTab('study'); }
-        function toggleNotes(id) { document.getElementById(`nb-${id}`).classList.toggle('hidden'); }
-        function saveNote(id) { 
-            const sub = data.subjects[data.activeSub];
-            const topic = sub.topics.find(x => x.id === id);
-            topic.notes = document.getElementById(`nt-${id}`).value; 
-            save(); showToast("Salvate"); 
-        }
-        function applyImprevisto() { const today = new Date().toISOString().split('T')[0]; data.subjects[data.activeSub].topics.forEach(t => { if(t.next <= today) t.next = shiftDate(today, 1); }); save(); render(); showToast("Spostato"); }
-
-        render();
-    </script>
-</body>
-</html>
+            data.subjects[data.activeSub].topics.push({ id: Date.now().toString(), name, notes: document.getElementById('inN').value, next: shiftDate(new Date(

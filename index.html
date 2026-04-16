@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Study Hub Pro V7.6 - Sky Blue</title>
+    <title>Study Hub Pro V7.7 - Weekly Agenda</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
         :root { 
             --bg: #050a0f; 
             --card-bg: #0f1720; 
-            --primary: #a2d2ff; /* Azzurro Nuvola */
-            --primary-bright: #87ceeb; /* Sky Blue */
+            --primary: #a2d2ff; 
+            --primary-bright: #87ceeb; 
             --text: #e1f5fe; 
             --text-dim: #b0bec5;
             --danger: #ff5252;
@@ -38,28 +38,25 @@
         .inner-nav-item { padding: 15px; cursor: pointer; font-size: 0.95rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.5px; }
         .inner-nav-item.active { color: var(--primary); border-bottom: 4px solid var(--primary); }
         
-        .btn { border: none; padding: 18px; border-radius: 12px; cursor: pointer; font-weight: 700; color: #050a0f; width: 100%; margin-top: 10px; font-size: 1.2rem; background: var(--primary); text-transform: uppercase; }
-        .btn-danger { background: var(--danger); color: #fff; }
-        
-        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; background: var(--border); border-radius: 12px; overflow: hidden; }
-        .calendar-day { background: var(--card-bg); min-height: 100px; padding: 8px; position: relative; }
-        .calendar-header { background: #020406; color: var(--primary); padding: 10px; font-weight: 700; font-size: 0.85rem; text-align: center; }
-        .day-number { font-weight: 700; color: var(--text-dim); opacity: 0.6; }
-        .today { border: 2px solid var(--primary); background: #162636; }
-        .topic-dot { height: 7px; border-radius: 4px; margin-top: 4px; width: 100%; transition: 0.3s; }
+        /* HEADER AGENDA SETTIMANALE */
+        .agenda-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #162636; padding: 15px; border-radius: 15px; }
+        .nav-arrow { cursor: pointer; font-size: 1.5rem; color: var(--primary); user-select: none; font-weight: bold; }
+        .week-label { font-weight: 700; color: var(--primary); font-size: 1.2rem; text-transform: uppercase; }
 
         .weekly-row { border-left: 6px solid var(--primary); background: #121e2a; padding: 20px; margin-bottom: 12px; border-radius: 0 15px 15px 0; border: 1px solid var(--border); }
-        .weekly-date { font-weight: 700; color: var(--primary); margin-bottom: 10px; font-size: 1.3rem; }
-        .weekly-item { font-size: 1.1rem; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+        .weekly-date { font-weight: 700; color: var(--primary); margin-bottom: 10px; font-size: 1.3rem; display: flex; justify-content: space-between; }
+        .weekly-day-name { font-size: 0.9rem; opacity: 0.7; }
+        .weekly-item { font-size: 1.1rem; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
 
-        input, textarea { width: 100%; padding: 18px; margin-bottom: 15px; border-radius: 12px; border: 2px solid var(--border); background: #020406; color: #fff; font-size: 1.2rem; font-family: 'Roboto'; }
+        .btn { border: none; padding: 18px; border-radius: 12px; cursor: pointer; font-weight: 700; color: #050a0f; width: 100%; margin-top: 10px; font-size: 1.2rem; background: var(--primary); text-transform: uppercase; }
+        .btn-danger { background: var(--danger); color: #fff; }
         
         .hidden { display: none !important; }
         .notes-toggle { color: var(--primary); cursor: pointer; font-weight: 700; font-size: 1.1rem; margin: 15px 0; display: inline-block; text-decoration: underline; }
         .notes-content { background: #020406; padding: 15px; border-radius: 12px; border: 1px solid var(--primary); margin: 15px 0; }
         
         .action-link { font-weight: 700; font-size: 1rem; cursor: pointer; text-decoration: underline; text-transform: uppercase; }
-        h2 { font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+        input, textarea { width: 100%; padding: 18px; margin-bottom: 15px; border-radius: 12px; border: 2px solid var(--border); background: #020406; color: #fff; font-size: 1.2rem; font-family: 'Roboto'; }
     </style>
 </head>
 <body>
@@ -82,13 +79,16 @@
     <div class="inner-nav">
         <div class="inner-nav-item active" id="tab-study-btn" onclick="switchSubTab(this, 'study')">STUDIO</div>
         <div class="inner-nav-item" id="tab-ripasso-btn" onclick="switchSubTab(this, 'ripasso')">RIPASSO</div>
-        <div class="inner-nav-item" id="tab-calendar-btn" onclick="switchSubTab(this, 'calendar')">CALENDARIO</div>
+        <div class="inner-nav-item" id="tab-calendar-btn" onclick="switchSubTab(this, 'calendar')">AGENDA</div>
         <div class="inner-nav-item" id="tab-history-btn" onclick="switchSubTab(this, 'history')">DATI</div>
     </div>
     <div id="tabContent"></div>
 </div>
 
 <script>
+    // Offset settimanale per la navigazione: 0 è la settimana corrente
+    let weekOffset = 0;
+    
     let data = JSON.parse(localStorage.getItem('multiSubjectDataV6')) || { subjects: {}, activeSubject: null, lang: 'it', isGlobal: false, activeTab: 'study' };
     const defaultColors = ['#a2d2ff', '#bde0fe', '#ffafcc', '#ffc8dd', '#cdb4db'];
 
@@ -110,6 +110,7 @@
     function activateGlobal() {
         data.isGlobal = true;
         data.activeSubject = null;
+        weekOffset = 0;
         save();
         render();
     }
@@ -117,6 +118,7 @@
     function selectSubject(name) {
         data.isGlobal = false;
         data.activeSubject = name;
+        weekOffset = 0;
         save();
         render();
     }
@@ -124,7 +126,6 @@
     function render() {
         const bar = document.getElementById('subjectBar');
         bar.querySelectorAll('.subject-tab:not(.global-tab)').forEach(e => e.remove());
-        
         document.getElementById('globalBtn').className = `subject-tab global-tab ${data.isGlobal ? 'active' : ''}`;
 
         Object.keys(data.subjects).forEach(sub => {
@@ -142,64 +143,80 @@
             content.innerHTML = document.getElementById('subjectTemplate').innerHTML;
             switchSubTab(null, data.activeTab || 'study');
         } else {
-            content.innerHTML = `<div class="card"><h2 style="color:var(--primary)">Benvenuta!</h2><p>Aggiungi una materia o seleziona quella da studiare.</p></div>`;
+            content.innerHTML = `<div class="card"><h2 style="color:var(--primary)">Study Hub Pro</h2><p>Seleziona una materia per iniziare lo studio.</p></div>`;
         }
     }
 
     function renderGlobalView(container) {
         container.innerHTML = `
             <div class="card">
-                <h2 style="color:var(--primary); text-align:center">VISTA GLOBALE</h2>
-                <div class="calendar-grid" id="globalGrid"></div>
-                <div class="weekly-view" style="margin-top:30px">
-                    <h3 style="color:var(--primary); border-bottom:2px solid var(--primary); padding-bottom:10px">PIANO SETTIMANALE TUTTE LE MATERIE</h3>
-                    <div id="globalWeekly"></div>
+                <h2 style="color:var(--primary); text-align:center">AGENDA GLOBALE</h2>
+                <div class="agenda-header">
+                    <div class="nav-arrow" onclick="changeWeek(-1)">❮</div>
+                    <div class="week-label" id="weekDisplay">Settimana</div>
+                    <div class="nav-arrow" onclick="changeWeek(1)">❯</div>
                 </div>
+                <div id="agendaWeekly"></div>
             </div>`;
-        renderFullCalendar('globalGrid', 'globalWeekly', true);
+        renderAgenda(true);
     }
 
-    function renderFullCalendar(gridId, weeklyId, isGlobal) {
-        const grid = document.getElementById(gridId);
-        const weekly = document.getElementById(weeklyId);
-        const now = new Date(); const year = now.getFullYear(); const month = now.getMonth();
-        const todayStr = now.toISOString().split('T')[0];
+    function changeWeek(dir) {
+        weekOffset += dir;
+        renderAgenda(data.isGlobal);
+    }
+
+    function renderAgenda(isGlobal) {
+        const weekly = document.getElementById(isGlobal ? 'agendaWeekly' : 'subAgendaWeekly');
+        const weekLabel = document.getElementById(isGlobal ? 'weekDisplay' : 'subWeekDisplay');
+        if (!weekly) return;
+
+        weekly.innerHTML = "";
+        const now = new Date();
+        const currentDay = now.getDay() === 0 ? 7 : now.getDay();
         
-        grid.innerHTML = ""; weekly.innerHTML = "";
-        ["LUN", "MAR", "MER", "GIO", "VEN", "SAB", "DOM"].forEach(d => grid.innerHTML += `<div class="calendar-header">${d}</div>`);
+        // Calcolo inizio settimana (Lunedì) basato su weekOffset
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - (currentDay - 1) + (weekOffset * 7));
+        
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
 
-        const firstDay = new Date(year, month, 1).getDay();
-        const startOffset = firstDay === 0 ? 6 : firstDay - 1;
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        // Aggiorna etichetta settimana
+        const options = { day: '2-digit', month: 'short' };
+        weekLabel.innerText = `${startOfWeek.toLocaleDateString('it-IT', options)} - ${endOfWeek.toLocaleDateString('it-IT', options)}`;
 
-        for (let i = 0; i < startOffset + daysInMonth; i++) {
-            const dayNum = i - startOffset + 1;
-            const dayDiv = document.createElement('div');
-            dayDiv.className = 'calendar-day';
-            if (dayNum > 0) {
-                const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
-                if(dateStr === todayStr) dayDiv.classList.add('today');
-                dayDiv.innerHTML = `<span class="day-number">${dayNum}</span>`;
-                
-                let dayTopics = [];
-                const subjectsToScan = isGlobal ? Object.keys(data.subjects) : [data.activeSubject];
+        const dayNames = ["LUNEDÌ", "MARTEDÌ", "MERCOLEDÌ", "GIOVEDÌ", "VENERDÌ", "SABATO", "DOMENICA"];
 
-                subjectsToScan.forEach(sName => {
-                    data.subjects[sName].topics.forEach(t => {
-                        if(t.next === dateStr) {
-                            dayDiv.innerHTML += `<div class="topic-dot" style="background:${data.subjects[sName].color}; opacity:${getIntensity(t.interval)}"></div>`;
-                            dayTopics.push({ name: t.name, sub: sName, color: data.subjects[sName].color, interval: t.interval });
-                        }
-                    });
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(startOfWeek);
+            d.setDate(startOfWeek.getDate() + i);
+            const dateStr = d.toISOString().split('T')[0];
+            const formattedDate = d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            
+            let dayTopics = [];
+            const subjectsToScan = isGlobal ? Object.keys(data.subjects) : [data.activeSubject];
+
+            subjectsToScan.forEach(sName => {
+                data.subjects[sName].topics.forEach(t => {
+                    if(t.next === dateStr) {
+                        dayTopics.push({ name: t.name, sub: sName, color: data.subjects[sName].color, interval: t.interval });
+                    }
                 });
+            });
 
-                const diff = (new Date(dateStr) - new Date(todayStr)) / (1000 * 3600 * 24);
-                if (diff >= 0 && diff < 7 && dayTopics.length > 0) {
-                    let items = dayTopics.map(dt => `<div class="weekly-item" style="color:${dt.color}; opacity:${getIntensity(dt.interval)}"><b>• ${dt.name}</b> ${isGlobal ? '('+dt.sub+')' : ''}</div>`).join('');
-                    weekly.innerHTML += `<div class="weekly-row"><div class="weekly-date">${dateStr.split('-').reverse().join('/')}</div>${items}</div>`;
-                }
-            }
-            grid.appendChild(dayDiv);
+            let itemsHtml = dayTopics.length > 0 
+                ? dayTopics.map(dt => `<div class="weekly-item" style="color:${dt.color}; opacity:${getIntensity(dt.interval)}"><b>• ${dt.name}</b> ${isGlobal ? '('+dt.sub+')' : ''}</div>`).join('')
+                : `<div style="font-size:0.9rem; opacity:0.4">Nessun ripasso programmato</div>`;
+
+            weekly.innerHTML += `
+                <div class="weekly-row" style="${dateStr === now.toISOString().split('T')[0] ? 'border-color:var(--primary-bright); background:#162636;' : ''}">
+                    <div class="weekly-date">
+                        <span>${formattedDate}</span>
+                        <span class="weekly-day-name">${dayNames[i]}</span>
+                    </div>
+                    ${itemsHtml}
+                </div>`;
         }
     }
 
@@ -239,8 +256,16 @@
                     </div>`;
             });
         } else if (type === 'calendar') {
-            container.innerHTML = `<div class="card"><div class="calendar-grid" id="subGrid"></div><div id="subWeekly" style="margin-top:20px"></div></div>`;
-            renderFullCalendar('subGrid', 'subWeekly', false);
+            container.innerHTML = `
+                <div class="card">
+                    <div class="agenda-header">
+                        <div class="nav-arrow" onclick="changeWeek(-1)">❮</div>
+                        <div class="week-label" id="subWeekDisplay">Settimana</div>
+                        <div class="nav-arrow" onclick="changeWeek(1)">❯</div>
+                    </div>
+                    <div id="subAgendaWeekly"></div>
+                </div>`;
+            renderAgenda(false);
         } else if (type === 'history') {
             container.innerHTML = sub.topics.map(t => `
                 <div class="card">
@@ -264,6 +289,7 @@
         if(activeBtn) activeBtn.classList.add('active');
     }
 
+    // Le funzioni di logica (rateTopic, addTopic, updateNote, etc.) rimangono invariate per continuità dei dati
     function toggleNoteView(id, section) {
         const box = document.getElementById(`n-box-${section}-${id}`);
         box.classList.toggle('hidden');

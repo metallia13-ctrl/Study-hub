@@ -115,7 +115,14 @@
         </div>
     </div>
 
-    <script>
+    <div id="modalConfirmDelete" class="modal-overlay hidden">
+        <div class="card" style="width:90%; max-width:400px; text-align:center;">
+            <h2 style="color:var(--danger);">ELIMINARE?</h2>
+            <p style="opacity:0.7; margin-bottom:20px;">Questa azione non è reversibile.</p>
+            <button class="btn btn-danger" id="confirmDeleteBtn">ELIMINA</button>
+            <button class="btn btn-secondary" onclick="closeModal('modalConfirmDelete')">ANNULLA</button>
+        </div>
+    </div>
         // Caricamento Dati
         let data = JSON.parse(localStorage.getItem('multiSubjectDataV6')) || { 
             subjects: {}, isGlobal: true, activeSub: null, triage: 1, activeTab: 'calendar', externalEvents: [] 
@@ -172,19 +179,25 @@
             if(isGlobal) renderColdSpots();
         }
 
-        function changeWeek(dir) { weekOffset += dir; updateAgendaList(data.isGlobal); }
+        function changeWeek(dir) { 
+            weekOffset += dir; 
+            updateAgendaList(data.isGlobal); 
+        }
 
         function updateAgendaList(isGlobal) {
-            const list = document.getElementById('agendaList');
-            if(!list) return;
-            
+            // Supporta sia la vista globale (#agendaList + #weekDisplay)
+            // sia la vista materia (#subAgendaWeekly + #subWeekDisplay)
+            const list = document.getElementById(isGlobal ? 'agendaList' : 'subAgendaWeekly');
+            const weekDisplay = document.getElementById(isGlobal ? 'weekDisplay' : 'subWeekDisplay');
+            if (!list || !weekDisplay) return;
+
             const today = new Date();
-            today.setHours(0,0,0,0);
+            today.setHours(0, 0, 0, 0);
             const dayOfWeek = today.getDay() === 0 ? 7 : today.getDay();
             const monday = new Date(today);
             monday.setDate(today.getDate() - (dayOfWeek - 1) + (weekOffset * 7));
 
-            document.getElementById('weekDisplay').innerText = `DAL ${monday.getDate()}/${monday.getMonth()+1}`;
+            weekDisplay.innerText = `DAL ${monday.getDate()}/${monday.getMonth() + 1}`;
             list.innerHTML = "";
             const dayNames = ["LUNEDÌ", "MARTEDÌ", "MERCOLEDÌ", "GIOVEDÌ", "VENERDÌ", "SABATO", "DOMENICA"];
 
@@ -193,25 +206,34 @@
                 currentDay.setDate(monday.getDate() + i);
                 const dStr = currentDay.toISOString().split('T')[0];
                 let html = "";
-                
+
                 const subs = isGlobal ? Object.keys(data.subjects) : [data.activeSub];
                 subs.forEach(s => {
+                    if (!data.subjects[s]) return;
                     data.subjects[s].topics.forEach(t => {
                         if (t.next === dStr) {
                             const triageCol = t.triage == 3 ? 'var(--danger)' : (t.triage == 2 ? 'var(--warning)' : data.subjects[s].color);
-                            html += `<div class="topic-card" style="border-left-color:${triageCol}; color:${triageCol}"><span class="topic-name">${t.name}</span><span class="subject-name">${s}</span></div>`;
+                            html += `<div class="topic-card" style="border-left: 5px solid ${triageCol}; border-radius:10px;">
+                                <span class="topic-name" style="color:${triageCol}">${t.name}</span>
+                                <span class="subject-name" style="color:${triageCol}">${s}</span>
+                            </div>`;
                         }
                     });
                 });
-                
-                (data.externalEvents || []).forEach(e => { if(e.date === dStr) html += `<div class="topic-card external-event">🏛️ ${e.title}</div>`; });
 
+                if (isGlobal) {
+                    (data.externalEvents || []).forEach(e => {
+                        if (e.date === dStr) html += `<div class="topic-card external-event">🏛️ ${e.title}</div>`;
+                    });
+                }
+
+                const isToday = dStr === today.toISOString().split('T')[0];
                 list.innerHTML += `<div class="day-section">
-                    <div class="day-title" style="${dStr === today.toISOString().split('T')[0] ? 'color:white; border-bottom:2px solid var(--primary)' : ''}">
-                        ${currentDay.getDate()} ${currentDay.toLocaleDateString('it-IT',{month:'short'}).toUpperCase()} 
-                        <span style="font-size:0.8rem; opacity:0.5; margin-left:10px;">${dayNames[i]}</span>
+                    <div class="day-title" style="${isToday ? 'color:white; border-bottom:2px solid var(--primary);' : ''}">
+                        <span>${currentDay.getDate()} ${currentDay.toLocaleDateString('it-IT', { month: 'short' }).toUpperCase()}</span>
+                        <span style="font-size:0.8rem; opacity:0.55;">${dayNames[i]}</span>
                     </div>
-                    ${html || '<p style="opacity:0.2; font-size:0.9rem; margin-left:10px;">NESSUNA ATTIVITÀ</p>'}
+                    ${html || '<p style="opacity:0.22; font-size:0.9rem; margin-left:10px;">NESSUNA ATTIVITÀ</p>'}
                 </div>`;
             }
         }
@@ -262,7 +284,15 @@
                     target.innerHTML += `<div class="card" style="border-left:8px solid ${border}"><h2>${t.name}</h2><div class="notes-toggle" onclick="toggleNotes('${t.id}')">VISUALIZZA NOTE</div><div id="nb-${t.id}" class="notes-content hidden"><textarea id="nt-${t.id}">${t.notes || ""}</textarea><button class="btn" style="padding:10px; font-size:1rem" onclick="saveNote('${t.id}')">SALVA NOTE</button></div><div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:15px"><button class="btn" style="background:#333; color:white" onclick="rate('${t.id}', 1)">NON NOTO</button><button class="btn" style="background:#007bff; color:white" onclick="rate('${t.id}', 2)">INCERTO</button><button class="btn" style="background:var(--success); color:black" onclick="rate('${t.id}', 3)">ACQUISITO</button></div></div>`;
                 });
             } else if (type === 'calendar') {
-                target.innerHTML = `<div class="agenda-header"><div class="nav-arrow" onclick="changeWeek(-1)">❮</div><div class="week-label" id="subWeekDisplay">...</div><div class="nav-arrow" onclick="changeWeek(1)">❯</div></div><div id="subAgendaWeekly"></div>`;
+                target.innerHTML = `
+                    <div class="card">
+                        <div class="agenda-header">
+                            <div class="nav-arrow" onclick="changeWeek(-1)">❮</div>
+                            <div class="week-label" id="subWeekDisplay">...</div>
+                            <div class="nav-arrow" onclick="changeWeek(1)">❯</div>
+                        </div>
+                        <div id="subAgendaWeekly"></div>
+                    </div>`;
                 updateAgendaList(false);
             } else if (type === 'history') {
                 target.innerHTML = sub.topics.map(t => `
@@ -348,7 +378,15 @@
             }
         }
 
-        function deleteTopic(id) { if(confirm("ELIMINARE?")) { data.subjects[data.activeSub].topics = data.subjects[data.activeSub].topics.filter(x => x.id !== id); save(); render(); }}
+        let _deleteTargetId = null;
+        function deleteTopic(id) { 
+            _deleteTargetId = id;
+            document.getElementById('confirmDeleteBtn').onclick = () => {
+                data.subjects[data.activeSub].topics = data.subjects[data.activeSub].topics.filter(x => x.id !== _deleteTargetId);
+                save(); closeModal('modalConfirmDelete'); render();
+            };
+            openModal('modalConfirmDelete');
+        }
         function setTriage(n) { data.triage = n; setSubTab('study'); }
         function toggleNotes(id) { document.getElementById(`nb-${id}`).classList.toggle('hidden'); }
         function saveNote(id) { data.subjects[data.activeSub].topics.find(x => x.id === id).notes = document.getElementById(`nt-${id}`).value; save(); showToast("Salvate"); }

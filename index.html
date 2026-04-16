@@ -3,140 +3,598 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Study Hub Ultra V10.2</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <title>Study Hub Ultra V10.4</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        :root { 
-            --bg: #050a0f; 
-            --card-bg: #0f1720; 
-            --primary: #a2d2ff; 
-            --text: #e1f5fe; 
-            --text-dim: #b0bec5;
-            --danger: #ff5252;
-            --warning: #ffe700;
-            --success: #00e676;
-            --border: #1c2b36;
+        :root {
+            --bg: #060d14;
+            --glass: rgba(255,255,255,0.04);
+            --glass-border: rgba(255,255,255,0.09);
+            --glass-hover: rgba(255,255,255,0.07);
+            --primary: #7dd3fc;
+            --primary-glow: rgba(125,211,252,0.18);
+            --text: #e2eaf2;
+            --text-dim: #6b8299;
+            --danger: #f87171;
+            --danger-glow: rgba(248,113,113,0.18);
+            --warning: #fbbf24;
+            --success: #34d399;
+            --exam-color: #c084fc;
+            --exam-glow: rgba(192,132,252,0.2);
+            --border: rgba(255,255,255,0.07);
         }
-        body { font-family: 'Roboto', sans-serif; background: var(--bg); margin: 0; padding: 0; color: var(--text); font-size: 19px; }
-        #toast { visibility: hidden; min-width: 250px; background-color: var(--primary); color: #050a0f; text-align: center; border-radius: 8px; padding: 16px; position: fixed; z-index: 9999; left: 50%; bottom: 30px; transform: translateX(-50%); font-weight: 700; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
-        
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 16px;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated background mesh */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background:
+                radial-gradient(ellipse 60% 40% at 20% 10%, rgba(125,211,252,0.06) 0%, transparent 60%),
+                radial-gradient(ellipse 50% 35% at 80% 80%, rgba(192,132,252,0.05) 0%, transparent 60%),
+                radial-gradient(ellipse 40% 30% at 60% 30%, rgba(52,211,153,0.03) 0%, transparent 55%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Toast */
+        #toast {
+            visibility: hidden;
+            min-width: 220px;
+            background: rgba(125,211,252,0.15);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(125,211,252,0.3);
+            color: var(--primary);
+            text-align: center;
+            border-radius: 14px;
+            padding: 14px 22px;
+            position: fixed;
+            z-index: 9999;
+            left: 50%;
+            bottom: 30px;
+            transform: translateX(-50%);
+            font-weight: 700;
+            font-size: 0.9rem;
+            letter-spacing: 0.5px;
+        }
+        #toast.show { visibility: visible; animation: toastin 0.4s ease, toastout 0.4s 2.6s ease forwards; }
+
         /* Sidebar */
-        .sidebar { background: #020406; border-bottom: 2px solid var(--border); padding: 15px; display: flex; gap: 12px; overflow-x: auto; position: sticky; top: 0; z-index: 1000; align-items: center; }
-        .subject-tab { padding: 10px 20px; border-radius: 25px; cursor: pointer; white-space: nowrap; font-weight: 700; font-size: 1rem; border: 2px solid transparent; background: #1a2a3a; color: var(--text-dim); }
-        .subject-tab.active { color: #050a0f; background: var(--primary); border-color: #fff; }
-        
-        .container { padding: 20px; max-width: 950px; margin: auto; }
-        .card { background: var(--card-bg); border-radius: 20px; padding: 25px; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.8); margin-bottom: 25px; }
-        
-        /* Navigazione Materia */
-        .inner-nav { display: flex; justify-content: space-around; margin-bottom: 25px; border-bottom: 2px solid var(--border); }
-        .inner-nav-item { padding: 15px; cursor: pointer; font-size: 0.95rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.5px; }
-        .inner-nav-item.active { color: var(--primary); border-bottom: 4px solid var(--primary); }
-        
+        .sidebar {
+            background: rgba(6,13,20,0.85);
+            backdrop-filter: blur(24px);
+            border-bottom: 1px solid var(--glass-border);
+            padding: 12px 16px;
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            align-items: center;
+            scrollbar-width: none;
+        }
+        .sidebar::-webkit-scrollbar { display: none; }
+
+        .subject-tab {
+            padding: 9px 18px;
+            border-radius: 50px;
+            cursor: pointer;
+            white-space: nowrap;
+            font-weight: 600;
+            font-size: 0.85rem;
+            letter-spacing: 0.3px;
+            border: 1px solid var(--glass-border);
+            background: var(--glass);
+            color: var(--text-dim);
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+        .subject-tab:hover { background: var(--glass-hover); color: var(--text); }
+        .subject-tab.active { color: var(--bg); background: var(--primary); border-color: transparent; font-weight: 700; }
+        .subject-tab.exam-mode-active { background: var(--exam-color); border-color: transparent; color: #1a0a2e; }
+
+        .sidebar-add-btn {
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            min-width: 32px;
+            border: 1px solid var(--glass-border);
+            background: var(--glass);
+            color: var(--primary);
+            font-size: 1.2rem;
+            font-weight: 300;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .sidebar-add-btn:hover { background: var(--primary-glow); border-color: var(--primary); }
+
+        .sidebar-lang {
+            margin-left: auto;
+            background: var(--glass);
+            color: var(--text-dim);
+            border: 1px solid var(--glass-border);
+            padding: 7px 12px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            min-width: fit-content;
+        }
+
+        /* Container */
+        .container { padding: 20px 16px; max-width: 680px; margin: auto; position: relative; z-index: 1; }
+
+        /* Glass Card */
+        .card {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 22px;
+            border: 1px solid var(--glass-border);
+            margin-bottom: 16px;
+            transition: border-color 0.2s;
+        }
+        .card:hover { border-color: rgba(255,255,255,0.13); }
+
+        /* Inner nav */
+        .inner-nav {
+            display: flex;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            padding: 4px;
+            margin-bottom: 18px;
+            gap: 2px;
+        }
+        .inner-nav-item {
+            flex: 1;
+            padding: 10px 6px;
+            cursor: pointer;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 10px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        .inner-nav-item:hover { color: var(--text); background: var(--glass-hover); }
+        .inner-nav-item.active { color: var(--bg); background: var(--primary); }
+        .inner-nav-item.exam-tab.active { background: var(--exam-color); }
+
+        /* Countdown */
+        .countdown-info {
+            text-align: center;
+            background: var(--primary-glow);
+            border: 1px dashed rgba(125,211,252,0.3);
+            padding: 14px;
+            border-radius: 16px;
+            margin-bottom: 14px;
+            cursor: pointer;
+            font-family: 'Space Mono', monospace;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--primary);
+            letter-spacing: 1px;
+            transition: all 0.2s;
+        }
+        .countdown-info:hover { background: rgba(125,211,252,0.12); }
+        .countdown-info.exam-mode {
+            background: var(--exam-glow);
+            border-color: rgba(192,132,252,0.4);
+            color: var(--exam-color);
+            animation: pulse-exam 2s ease-in-out infinite;
+        }
+
         /* Agenda */
-        .agenda-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
-        .nav-arrow { cursor: pointer; font-size: 1.8rem; color: var(--primary); font-weight: bold; padding: 0 15px; user-select: none; }
-        .week-label { font-weight: 700; color: var(--primary); font-size: 1.1rem; text-transform: uppercase; }
-        .day-section { margin-bottom: 30px; }
-        .day-title { font-weight: 700; font-size: 1.3rem; color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: baseline; }
-        
-        .topic-card { background: #121e2a; border-radius: 12px; padding: 15px; margin-bottom: 12px; border-left: 6px solid; border: 1px solid #1c2b36; }
-        .topic-name { font-weight: 700; font-size: 1.1rem; display: block; margin-bottom: 4px; }
-        .subject-name { font-style: italic; font-size: 0.9rem; opacity: 0.8; }
-        .external-event { border-left-color: #7f8c8d; color: #bdc3c7; background: #0a1118; font-style: italic; }
-        
-        /* Bottoni */
-        .btn { border: none; padding: 18px; border-radius: 12px; cursor: pointer; font-weight: 700; color: #050a0f; width: 100%; margin-top: 10px; font-size: 1.1rem; background: var(--primary); text-transform: uppercase; }
-        .btn-small { padding: 10px 20px; font-size: 0.85rem; width: auto; margin: 0 auto 20px auto; display: block; }
-        .btn-danger { background: var(--danger); color: #fff; }
-        .btn-secondary { background: #1a2a3a; color: var(--primary); border: 1px solid var(--primary); }
-        
+        .agenda-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .nav-arrow {
+            cursor: pointer;
+            font-size: 1.4rem;
+            color: var(--primary);
+            padding: 8px 14px;
+            border-radius: 10px;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            transition: all 0.2s;
+            user-select: none;
+            line-height: 1;
+        }
+        .nav-arrow:hover { background: var(--primary-glow); border-color: var(--primary); }
+        .week-label {
+            font-family: 'Space Mono', monospace;
+            font-weight: 700;
+            color: var(--primary);
+            font-size: 0.95rem;
+            letter-spacing: 1px;
+        }
+        .day-section { margin-bottom: 24px; }
+        .day-title {
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--text-dim);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-family: 'Space Mono', monospace;
+            font-size: 0.9rem;
+            letter-spacing: 0.5px;
+        }
+        .day-title.today { color: var(--primary); border-bottom-color: rgba(125,211,252,0.3); }
+
+        /* Topic card */
+        .topic-card {
+            background: var(--glass);
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+            border: 1px solid var(--glass-border);
+            border-left: 4px solid;
+            transition: all 0.2s;
+        }
+        .topic-card:hover { background: var(--glass-hover); }
+        .topic-name { font-weight: 600; font-size: 0.95rem; display: block; margin-bottom: 3px; }
+        .subject-label { font-size: 0.78rem; opacity: 0.6; font-style: italic; }
+        .external-event { border-left-color: var(--text-dim) !important; opacity: 0.6; font-style: italic; font-size: 0.9rem; }
+
+        /* Buttons */
+        .btn {
+            border: none;
+            padding: 15px 20px;
+            border-radius: 13px;
+            cursor: pointer;
+            font-weight: 700;
+            font-family: 'DM Sans', sans-serif;
+            width: 100%;
+            margin-top: 10px;
+            font-size: 0.9rem;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: var(--primary); color: var(--bg); }
+        .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+        .btn-danger { background: rgba(248,113,113,0.15); color: var(--danger); border: 1px solid rgba(248,113,113,0.3); }
+        .btn-danger:hover { background: rgba(248,113,113,0.25); }
+        .btn-danger.solid { background: var(--danger); color: #fff; border: none; }
+        .btn-secondary { background: var(--glass); color: var(--text-dim); border: 1px solid var(--glass-border); }
+        .btn-secondary:hover { background: var(--glass-hover); color: var(--text); }
+        .btn-exam { background: var(--exam-glow); color: var(--exam-color); border: 1px solid rgba(192,132,252,0.3); }
+        .btn-exam:hover { background: rgba(192,132,252,0.2); }
+        .btn-small { padding: 9px 18px; font-size: 0.78rem; width: auto; display: inline-block; margin: 0; }
+
+        /* Imprevisto */
+        .imprevisto-btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 13px;
+            background: rgba(248,113,113,0.1);
+            color: var(--danger);
+            border: 1px solid rgba(248,113,113,0.25);
+            font-weight: 700;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+            margin-bottom: 14px;
+            transition: all 0.2s;
+        }
+        .imprevisto-btn:hover { background: rgba(248,113,113,0.18); }
+
+        /* Hidden */
         .hidden { display: none !important; }
-        input, textarea { width: 100%; padding: 18px; margin-bottom: 15px; border-radius: 12px; border: 2px solid var(--border); background: #020406; color: #fff; font-size: 1.1rem; font-family: 'Roboto'; box-sizing: border-box; }
-        
-        /* Note e Triage */
-        .notes-toggle { color: var(--primary); cursor: pointer; font-weight: 700; font-size: 1rem; margin: 15px 0; display: inline-block; text-decoration: underline; }
-        .notes-content { background: #020406; padding: 15px; border-radius: 12px; border: 1px solid var(--primary); margin: 15px 0; }
-        .triage-box { display: flex; gap: 8px; margin-bottom: 15px; }
-        .t-dot { flex: 1; padding: 10px; border-radius: 8px; font-size: 0.75rem; font-weight: bold; text-align: center; color: #000; opacity: 0.35; cursor: pointer; }
-        .t-dot.active { opacity: 1; border: 2px solid white; }
-        
+
+        /* Inputs */
+        input[type="text"], input[type="date"], textarea {
+            width: 100%;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+            background: rgba(0,0,0,0.3);
+            color: var(--text);
+            font-size: 0.95rem;
+            font-family: 'DM Sans', sans-serif;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input[type="text"]:focus, textarea:focus { border-color: rgba(125,211,252,0.4); }
+        textarea { resize: vertical; min-height: 80px; }
+        input[type="file"] { display: none; }
+
+        /* Triage */
+        .triage-box { display: flex; gap: 8px; margin-bottom: 14px; }
+        .t-dot {
+            flex: 1; padding: 10px 6px; border-radius: 10px;
+            font-size: 0.7rem; font-weight: 700; text-align: center;
+            cursor: pointer; transition: all 0.2s; opacity: 0.3;
+            border: 1px solid transparent; letter-spacing: 0.5px;
+        }
+        .t-dot:hover { opacity: 0.6; }
+        .t-dot.active { opacity: 1; border-color: rgba(255,255,255,0.4); }
+
+        /* Notes */
+        .notes-toggle {
+            color: var(--primary);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.82rem;
+            margin: 12px 0 0 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+        .notes-toggle:hover { opacity: 1; }
+        .notes-content {
+            background: rgba(0,0,0,0.25);
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid var(--glass-border);
+            margin-top: 10px;
+        }
+
         /* Modali */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 5000; display: flex; align-items: center; justify-content: center; }
-        .countdown-info { text-align: center; background: rgba(162, 210, 255, 0.1); padding: 15px; border-radius: 15px; margin-bottom: 20px; border: 1px dashed var(--primary); cursor: pointer; }
-        
-        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
-        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+        .modal-overlay {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(8px);
+            z-index: 5000;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .modal-card {
+            width: 90%; max-width: 420px;
+            background: rgba(10,18,28,0.95);
+            backdrop-filter: blur(30px);
+            border: 1px solid var(--glass-border);
+            border-radius: 22px;
+            padding: 28px 24px;
+        }
+        .modal-title {
+            font-family: 'Space Mono', monospace;
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+            color: var(--text);
+        }
+
+        /* Statistiche */
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+        .stat-box {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            padding: 16px 14px;
+            text-align: center;
+        }
+        .stat-number {
+            font-family: 'Space Mono', monospace;
+            font-size: 1.8rem;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+        .stat-label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; }
+        .progress-bar-wrap { margin-bottom: 14px; }
+        .progress-label { display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 6px; color: var(--text-dim); }
+        .progress-bar-bg { background: rgba(255,255,255,0.06); border-radius: 99px; height: 8px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; border-radius: 99px; transition: width 0.6s ease; }
+
+        /* Export/Import area */
+        .export-btns { display: flex; gap: 10px; }
+        .export-btns .btn { flex: 1; margin-top: 0; }
+
+        /* Modalità esame banner */
+        .exam-banner {
+            background: var(--exam-glow);
+            border: 1px solid rgba(192,132,252,0.3);
+            border-radius: 13px;
+            padding: 12px 16px;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.82rem;
+        }
+        .exam-banner-text { color: var(--exam-color); font-weight: 700; letter-spacing: 0.5px; }
+        .exam-toggle-btn {
+            background: var(--exam-color);
+            color: #1a0a2e;
+            border: none;
+            border-radius: 8px;
+            padding: 6px 14px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+            transition: opacity 0.2s;
+        }
+        .exam-toggle-btn:hover { opacity: 0.85; }
+
+        /* Cold spots */
+        .cold-card {
+            background: rgba(248,113,113,0.05);
+            border: 1px solid rgba(248,113,113,0.2);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .cold-title { color: var(--danger); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+        .cold-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(248,113,113,0.1); font-size: 0.88rem; }
+        .cold-item:last-child { border-bottom: none; }
+
+        /* Section label */
+        .section-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-dim); margin-bottom: 12px; }
+
+        /* Ripasso cards */
+        .ripasso-card {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 18px;
+            margin-bottom: 12px;
+            border-left: 4px solid;
+        }
+        .ripasso-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
+        .rate-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 14px; }
+        .rate-btn {
+            border: none; border-radius: 10px; padding: 11px 6px;
+            font-size: 0.72rem; font-weight: 700; cursor: pointer;
+            letter-spacing: 0.4px; text-transform: uppercase;
+            transition: all 0.2s; font-family: 'DM Sans', sans-serif;
+        }
+        .rate-btn:hover { transform: translateY(-2px); }
+
+        /* Aggiungi impegno esterno btn piccolo */
+        .top-action-bar { display: flex; gap: 10px; margin-bottom: 14px; align-items: center; justify-content: flex-end; }
+
+        @keyframes toastin { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+        @keyframes toastout { from { opacity: 1; } to { opacity: 0; } }
+        @keyframes pulse-exam { 0%, 100% { box-shadow: 0 0 0 0 rgba(192,132,252,0); } 50% { box-shadow: 0 0 0 6px rgba(192,132,252,0.15); } }
     </style>
 </head>
 <body>
     <div id="toast"></div>
+
+    <!-- Sidebar -->
     <div class="sidebar" id="subjectBar">
-        <div class="subject-tab active" id="globalBtn" onclick="setView('global')">AGENDA</div>
-        <button style="border-radius:50%; width:35px; height:35px; border:none; background:var(--primary); font-weight:bold; cursor:pointer;" onclick="openModal('modalNewSubject')">+</button>
-        <select style="margin-left:auto; background:#1a2a3a; color:white; border:none; padding:8px; border-radius:10px;"><option>IT 🇮🇹</option></select>
+        <div class="subject-tab active" id="globalBtn" onclick="setView('global')">Agenda</div>
+        <button class="sidebar-add-btn" onclick="openModal('modalNewSubject')">+</button>
+        <div class="sidebar-lang">IT 🇮🇹</div>
     </div>
-    
+
     <div id="appContent" class="container"></div>
 
+    <!-- Modali -->
     <div id="modalNewSubject" class="modal-overlay hidden">
-        <div class="card" style="width:90%; max-width:400px;">
-            <h2>NUOVA MATERIA</h2>
+        <div class="modal-card">
+            <div class="modal-title">NUOVA MATERIA</div>
             <input type="text" id="inSubName" placeholder="Nome materia...">
-            <button class="btn" onclick="addNewSubject()">AGGIUNGI</button>
-            <button class="btn btn-secondary" onclick="closeModal('modalNewSubject')">ANNULLA</button>
+            <div class="export-btns" style="margin-top:4px;">
+                <button class="btn btn-primary" onclick="addNewSubject()">AGGIUNGI</button>
+                <button class="btn btn-secondary" onclick="closeModal('modalNewSubject')">ANNULLA</button>
+            </div>
         </div>
     </div>
+
     <div id="modalExamDate" class="modal-overlay hidden">
-        <div class="card" style="width:90%; max-width:400px;">
-            <h2>DATA ESAME</h2>
+        <div class="modal-card">
+            <div class="modal-title">DATA ESAME</div>
             <input type="text" id="inExamDate" placeholder="GG/MM/AAAA">
-            <button class="btn" onclick="confirmExamDate()">SALVA</button>
-            <button class="btn btn-secondary" onclick="closeModal('modalExamDate')">ANNULLA</button>
+            <div class="export-btns">
+                <button class="btn btn-primary" onclick="confirmExamDate()">SALVA</button>
+                <button class="btn btn-secondary" onclick="closeModal('modalExamDate')">ANNULLA</button>
+            </div>
         </div>
     </div>
+
     <div id="modalEditDate" class="modal-overlay hidden">
-        <div class="card" style="width:90%; max-width:400px;">
-            <h2>RIPIANIFICA</h2>
+        <div class="modal-card">
+            <div class="modal-title">RIPIANIFICA</div>
             <input type="text" id="inNewDate" placeholder="GG/MM/AAAA">
             <input type="hidden" id="editTopicId">
-            <button class="btn" onclick="confirmManualDate()">SALVA</button>
-            <button class="btn btn-secondary" onclick="closeModal('modalEditDate')">ANNULLA</button>
+            <div class="export-btns">
+                <button class="btn btn-primary" onclick="confirmManualDate()">SALVA</button>
+                <button class="btn btn-secondary" onclick="closeModal('modalEditDate')">ANNULLA</button>
+            </div>
         </div>
     </div>
+
     <div id="modalExt" class="modal-overlay hidden">
-        <div class="card" style="width:90%; max-width:400px;">
-            <h2>IMPEGNO ESTERNO</h2>
+        <div class="modal-card">
+            <div class="modal-title">IMPEGNO ESTERNO</div>
             <input type="text" id="extTitle" placeholder="Descrizione...">
             <input type="text" id="extDate" placeholder="GG/MM/AAAA">
-            <button class="btn" onclick="addExternalEvent()">SALVA</button>
-            <button class="btn btn-secondary" onclick="closeModal('modalExt')">ANNULLA</button>
+            <div class="export-btns">
+                <button class="btn btn-primary" onclick="addExternalEvent()">SALVA</button>
+                <button class="btn btn-secondary" onclick="closeModal('modalExt')">ANNULLA</button>
+            </div>
         </div>
     </div>
 
     <div id="modalConfirmDelete" class="modal-overlay hidden">
-        <div class="card" style="width:90%; max-width:400px; text-align:center;">
-            <h2 style="color:var(--danger);">ELIMINARE?</h2>
-            <p style="opacity:0.7; margin-bottom:20px;">Questa azione non è reversibile.</p>
-            <button class="btn btn-danger" id="confirmDeleteBtn">ELIMINA</button>
-            <button class="btn btn-secondary" onclick="closeModal('modalConfirmDelete')">ANNULLA</button>
+        <div class="modal-card" style="text-align:center;">
+            <div class="modal-title" style="color:var(--danger);">ELIMINARE?</div>
+            <p style="opacity:0.55; margin-bottom:22px; font-size:0.88rem;">Questa azione non è reversibile.</p>
+            <div class="export-btns">
+                <button class="btn btn-danger solid" id="confirmDeleteBtn">ELIMINA</button>
+                <button class="btn btn-secondary" onclick="closeModal('modalConfirmDelete')">ANNULLA</button>
+            </div>
         </div>
     </div>
-        // Caricamento Dati
-        let data = JSON.parse(localStorage.getItem('multiSubjectDataV6')) || { 
-            subjects: {}, isGlobal: true, activeSub: null, triage: 1, activeTab: 'calendar', externalEvents: [] 
+
+    <!-- Import file hidden input -->
+    <input type="file" id="importFileInput" accept=".json" onchange="handleImport(event)">
+
+    <script>
+        // ── Dati ──────────────────────────────────────────────────────────────
+        let data = JSON.parse(localStorage.getItem('multiSubjectDataV6')) || {
+            subjects: {}, isGlobal: true, activeSub: null,
+            triage: 1, activeTab: 'calendar', externalEvents: []
         };
         let weekOffset = 0;
-        const colors = ['#a2d2ff', '#74ee15', '#ffe700', '#f000ff', '#ff5252', '#00e676'];
+        const colors = ['#7dd3fc','#34d399','#fbbf24','#f472b6','#f87171','#a78bfa'];
 
         function save() { localStorage.setItem('multiSubjectDataV6', JSON.stringify(data)); }
-        function showToast(msg) { const x = document.getElementById("toast"); x.innerHTML = msg; x.className = "show"; setTimeout(() => x.className = "", 3000); }
+        function showToast(msg) {
+            const x = document.getElementById('toast');
+            x.innerHTML = msg; x.className = 'show';
+            setTimeout(() => x.className = '', 3200);
+        }
         function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
         function shiftDate(s, d) { let date = new Date(s); date.setDate(date.getDate() + d); return date.toISOString().split('T')[0]; }
+        function todayStr() { return new Date().toISOString().split('T')[0]; }
 
-        // Navigazione
+        // ── Modalità Esame ────────────────────────────────────────────────────
+        function isExamMode(subName) {
+            const sub = data.subjects[subName];
+            if (!sub) return false;
+            // Toggle manuale
+            if (sub.examModeManual) return true;
+            // Automatico: se mancano ≤3 giorni all'esame
+            if (sub.examDate) {
+                const diff = Math.ceil((new Date(sub.examDate) - new Date()) / (1000*60*60*24));
+                return diff > 0 && diff <= 3;
+            }
+            return false;
+        }
+        function toggleExamMode(subName) {
+            data.subjects[subName].examModeManual = !data.subjects[subName].examModeManual;
+            save(); render();
+        }
+
+        // ── Navigazione ───────────────────────────────────────────────────────
         function setView(view, sub = null) {
             data.isGlobal = (view === 'global');
             data.activeSub = sub;
@@ -148,11 +606,13 @@
             const bar = document.getElementById('subjectBar');
             bar.querySelectorAll('.subject-tab:not(#globalBtn)').forEach(e => e.remove());
             document.getElementById('globalBtn').classList.toggle('active', data.isGlobal);
-            
+
             Object.keys(data.subjects).forEach(name => {
                 const btn = document.createElement('div');
-                btn.className = `subject-tab ${ (!data.isGlobal && data.activeSub === name) ? 'active' : '' }`;
-                btn.innerHTML = name;
+                const isActive = !data.isGlobal && data.activeSub === name;
+                const examM = isExamMode(name);
+                btn.className = `subject-tab${isActive ? ' active' : ''}${isActive && examM ? ' exam-mode-active' : ''}`;
+                btn.textContent = name + (examM ? ' 🔴' : '');
                 btn.onclick = () => setView('subject', name);
                 bar.insertBefore(btn, bar.children[bar.children.length - 1]);
             });
@@ -162,99 +622,115 @@
             else renderMateria(app);
         }
 
-        // Agenda
+        // ── Agenda ────────────────────────────────────────────────────────────
         function renderAgenda(target, isGlobal) {
             target.innerHTML = `
-                ${isGlobal ? '<button class="btn btn-secondary btn-small" onclick="openModal(\'modalExt\')">AGGIUNGI IMPEGNO ESTERNO</button>' : ''}
+                ${isGlobal ? `<div class="top-action-bar">
+                    <button class="btn btn-secondary btn-small" onclick="openModal('modalExt')">+ Impegno Esterno</button>
+                    <button class="btn btn-secondary btn-small" onclick="document.getElementById('importFileInput').click()">⬆ Import</button>
+                    <button class="btn btn-secondary btn-small" onclick="exportData()">⬇ Export</button>
+                </div>` : ''}
                 <div class="card">
                     <div class="agenda-header">
                         <div class="nav-arrow" onclick="changeWeek(-1)">❮</div>
-                        <div class="week-label" id="weekDisplay">CARICAMENTO...</div>
+                        <div class="week-label" id="weekDisplay">—</div>
                         <div class="nav-arrow" onclick="changeWeek(1)">❯</div>
                     </div>
                     <div id="agendaList"></div>
                 </div>
                 <div id="coldSpotsSection"></div>`;
             updateAgendaList(isGlobal);
-            if(isGlobal) renderColdSpots();
+            if (isGlobal) renderColdSpots();
         }
 
-        function changeWeek(dir) { 
-            weekOffset += dir; 
-            updateAgendaList(data.isGlobal); 
-        }
+        function changeWeek(dir) { weekOffset += dir; updateAgendaList(data.isGlobal); }
 
         function updateAgendaList(isGlobal) {
-            // Supporta sia la vista globale (#agendaList + #weekDisplay)
-            // sia la vista materia (#subAgendaWeekly + #subWeekDisplay)
             const list = document.getElementById(isGlobal ? 'agendaList' : 'subAgendaWeekly');
             const weekDisplay = document.getElementById(isGlobal ? 'weekDisplay' : 'subWeekDisplay');
             if (!list || !weekDisplay) return;
 
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const dayOfWeek = today.getDay() === 0 ? 7 : today.getDay();
+            const today = new Date(); today.setHours(0,0,0,0);
+            const todayISO = today.toISOString().split('T')[0];
+            const dow = today.getDay() === 0 ? 7 : today.getDay();
             const monday = new Date(today);
-            monday.setDate(today.getDate() - (dayOfWeek - 1) + (weekOffset * 7));
+            monday.setDate(today.getDate() - (dow - 1) + (weekOffset * 7));
 
-            weekDisplay.innerText = `DAL ${monday.getDate()}/${monday.getMonth() + 1}`;
-            list.innerHTML = "";
-            const dayNames = ["LUNEDÌ", "MARTEDÌ", "MERCOLEDÌ", "GIOVEDÌ", "VENERDÌ", "SABATO", "DOMENICA"];
+            weekDisplay.textContent = `DAL ${monday.getDate()}/${monday.getMonth()+1}`;
+            list.innerHTML = '';
+            const dayNames = ['LUNEDÌ','MARTEDÌ','MERCOLEDÌ','GIOVEDÌ','VENERDÌ','SABATO','DOMENICA'];
 
             for (let i = 0; i < 7; i++) {
-                const currentDay = new Date(monday);
-                currentDay.setDate(monday.getDate() + i);
-                const dStr = currentDay.toISOString().split('T')[0];
-                let html = "";
+                const day = new Date(monday);
+                day.setDate(monday.getDate() + i);
+                const dStr = day.toISOString().split('T')[0];
+                let html = '';
 
                 const subs = isGlobal ? Object.keys(data.subjects) : [data.activeSub];
                 subs.forEach(s => {
                     if (!data.subjects[s]) return;
+                    const examM = isExamMode(s);
                     data.subjects[s].topics.forEach(t => {
-                        if (t.next === dStr) {
-                            const triageCol = t.triage == 3 ? 'var(--danger)' : (t.triage == 2 ? 'var(--warning)' : data.subjects[s].color);
-                            html += `<div class="topic-card" style="border-left: 5px solid ${triageCol}; border-radius:10px;">
-                                <span class="topic-name" style="color:${triageCol}">${t.name}</span>
-                                <span class="subject-name" style="color:${triageCol}">${s}</span>
-                            </div>`;
-                        }
+                        if (t.next !== dStr) return;
+                        if (examM && t.triage !== 3) return; // In exam mode: solo triage ESAME
+                        const col = t.triage == 3 ? 'var(--danger)' : (t.triage == 2 ? 'var(--warning)' : data.subjects[s].color);
+                        html += `<div class="topic-card" style="border-left-color:${col}">
+                            <span class="topic-name" style="color:${col}">${t.name}</span>
+                            <span class="subject-label">${s}</span>
+                        </div>`;
                     });
                 });
 
                 if (isGlobal) {
                     (data.externalEvents || []).forEach(e => {
-                        if (e.date === dStr) html += `<div class="topic-card external-event">🏛️ ${e.title}</div>`;
+                        if (e.date === dStr) html += `<div class="topic-card external-event">🏛 ${e.title}</div>`;
                     });
                 }
 
-                const isToday = dStr === today.toISOString().split('T')[0];
+                const isToday = dStr === todayISO;
                 list.innerHTML += `<div class="day-section">
-                    <div class="day-title" style="${isToday ? 'color:white; border-bottom:2px solid var(--primary);' : ''}">
-                        <span>${currentDay.getDate()} ${currentDay.toLocaleDateString('it-IT', { month: 'short' }).toUpperCase()}</span>
-                        <span style="font-size:0.8rem; opacity:0.55;">${dayNames[i]}</span>
+                    <div class="day-title${isToday ? ' today' : ''}">
+                        <span>${day.getDate()} ${day.toLocaleDateString('it-IT',{month:'short'}).toUpperCase()}</span>
+                        <span style="font-size:0.72rem; opacity:0.45;">${dayNames[i]}</span>
                     </div>
-                    ${html || '<p style="opacity:0.22; font-size:0.9rem; margin-left:10px;">NESSUNA ATTIVITÀ</p>'}
+                    ${html || '<p style="opacity:0.18; font-size:0.82rem; padding-left:4px;">nessuna attività</p>'}
                 </div>`;
             }
         }
 
-        // Materia Singola
+        // ── Materia ───────────────────────────────────────────────────────────
         function renderMateria(app) {
             const sub = data.subjects[data.activeSub];
-            let countdownHtml = "";
-            if(sub.examDate) {
+            const examM = isExamMode(data.activeSub);
+
+            let countdownText = 'IMPOSTA DATA ESAME';
+            let cdClass = '';
+            if (sub.examDate) {
                 const diff = Math.ceil((new Date(sub.examDate) - new Date()) / (1000*60*60*24));
-                countdownHtml = diff > 0 ? `T-MINUS: ${diff} GIORNI ALL'ESAME` : "DATA ESAME RAGGIUNTA";
-            } else { countdownHtml = "IMPOSTA DATA ESAME"; }
+                countdownText = diff > 0 ? `T-MINUS: ${diff} GIORNI` : 'ESAME RAGGIUNTO';
+                if (examM) cdClass = ' exam-mode';
+            }
+
+            const examBanner = examM ? `
+                <div class="exam-banner">
+                    <span class="exam-banner-text">🔴 MODALITÀ ESAME ATTIVA — solo argomenti priorità ESAME</span>
+                    <button class="exam-toggle-btn" onclick="toggleExamMode('${data.activeSub}')">DISATTIVA</button>
+                </div>` : '';
+
+            const examToggleAction = !examM ? `
+                <button class="btn btn-exam btn-small" style="width:100%; margin-bottom:14px;" onclick="toggleExamMode('${data.activeSub}')">🔴 ATTIVA MODALITÀ ESAME</button>` : '';
 
             app.innerHTML = `
-                <div class="countdown-info" onclick="openModal('modalExamDate')">${countdownHtml}</div>
-                <button class="btn btn-danger" onclick="applyImprevisto()">GESTISCI IMPREVISTO (+1 GIORNO)</button>
+                <div class="countdown-info${cdClass}" onclick="openModal('modalExamDate')">${countdownText}</div>
+                ${examBanner}
+                <button class="imprevisto-btn" onclick="applyImprevisto()">⚠ GESTISCI IMPREVISTO (+1 GIORNO)</button>
+                ${examToggleAction}
                 <div class="inner-nav">
                     <div class="inner-nav-item" id="nav-study" onclick="setSubTab('study')">Studio</div>
                     <div class="inner-nav-item" id="nav-ripasso" onclick="setSubTab('ripasso')">Ripasso</div>
                     <div class="inner-nav-item" id="nav-calendar" onclick="setSubTab('calendar')">Agenda</div>
                     <div class="inner-nav-item" id="nav-history" onclick="setSubTab('history')">Archivio</div>
+                    <div class="inner-nav-item exam-tab" id="nav-stats" onclick="setSubTab('stats')">Statistiche</div>
                 </div>
                 <div id="tabContent"></div>`;
             setSubTab(data.activeTab);
@@ -264,87 +740,238 @@
             data.activeTab = type;
             const sub = data.subjects[data.activeSub];
             const target = document.getElementById('tabContent');
-            if(!target) return;
-            document.querySelectorAll('.inner-nav-item').forEach(i => i.classList.toggle('active', i.id.includes(type)));
+            if (!target) return;
+            document.querySelectorAll('.inner-nav-item').forEach(i => i.classList.toggle('active', i.id === `nav-${type}`));
 
             if (type === 'study') {
-                target.innerHTML = `<div class="card"><h2>REGISTRAZIONE STUDIO</h2>
-                <div class="triage-box">
-                    <div class="t-dot ${data.triage==1?'active':''}" style="background:var(--success)" onclick="setTriage(1)">BASE</div>
-                    <div class="t-dot ${data.triage==2?'active':''}" style="background:var(--warning)" onclick="setTriage(2)">COMPLESSO</div>
-                    <div class="t-dot ${data.triage==3?'active':''}" style="background:var(--danger)" onclick="setTriage(3)">ESAME</div>
-                </div>
-                <input id="inT" placeholder="NOME ARGOMENTO"><textarea id="inN" placeholder="NOTE..."></textarea><button class="btn" onclick="addTopic()">PIANIFICA</button></div>`;
+                target.innerHTML = `
+                    <div class="card">
+                        <div class="section-label">Registrazione Studio</div>
+                        <div class="triage-box">
+                            <div class="t-dot ${data.triage==1?'active':''}" style="background:var(--success);color:#000" onclick="setTriage(1)">BASE</div>
+                            <div class="t-dot ${data.triage==2?'active':''}" style="background:var(--warning);color:#000" onclick="setTriage(2)">COMPLESSO</div>
+                            <div class="t-dot ${data.triage==3?'active':''}" style="background:var(--danger);color:#fff" onclick="setTriage(3)">ESAME</div>
+                        </div>
+                        <input type="text" id="inT" placeholder="Nome argomento">
+                        <textarea id="inN" placeholder="Note (opzionale)..."></textarea>
+                        <button class="btn btn-primary" onclick="addTopic()">PIANIFICA</button>
+                    </div>`;
+
             } else if (type === 'ripasso') {
-                const today = new Date().toISOString().split('T')[0];
-                const due = sub.topics.filter(t => t.next <= today);
-                target.innerHTML = due.length ? "" : "<h2>SESSIONE COMPLETATA</h2>";
+                const today = todayStr();
+                const examM = isExamMode(data.activeSub);
+                let due = sub.topics.filter(t => t.next <= today);
+                if (examM) due = due.filter(t => t.triage === 3);
+                target.innerHTML = '';
+                if (!due.length) {
+                    target.innerHTML = `<div class="card" style="text-align:center; padding:30px;">
+                        <div style="font-size:2rem; margin-bottom:10px;">✓</div>
+                        <div style="font-weight:700; color:var(--success); font-size:1rem;">Sessione completata</div>
+                        ${examM ? '<div style="font-size:0.8rem; opacity:0.5; margin-top:8px;">Modalità esame: solo argomenti ESAME</div>' : ''}
+                    </div>`;
+                }
                 due.forEach(t => {
-                    const border = t.triage == 3 ? 'var(--danger)' : (t.triage == 2 ? 'var(--warning)' : sub.color);
-                    target.innerHTML += `<div class="card" style="border-left:8px solid ${border}"><h2>${t.name}</h2><div class="notes-toggle" onclick="toggleNotes('${t.id}')">VISUALIZZA NOTE</div><div id="nb-${t.id}" class="notes-content hidden"><textarea id="nt-${t.id}">${t.notes || ""}</textarea><button class="btn" style="padding:10px; font-size:1rem" onclick="saveNote('${t.id}')">SALVA NOTE</button></div><div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:15px"><button class="btn" style="background:#333; color:white" onclick="rate('${t.id}', 1)">NON NOTO</button><button class="btn" style="background:#007bff; color:white" onclick="rate('${t.id}', 2)">INCERTO</button><button class="btn" style="background:var(--success); color:black" onclick="rate('${t.id}', 3)">ACQUISITO</button></div></div>`;
+                    const col = t.triage==3 ? 'var(--danger)' : (t.triage==2 ? 'var(--warning)' : sub.color);
+                    target.innerHTML += `<div class="ripasso-card" style="border-left-color:${col}">
+                        <h3 style="color:${col}">${t.name}</h3>
+                        <span class="notes-toggle" onclick="toggleNotes('${t.id}')">▸ Note</span>
+                        <div id="nb-${t.id}" class="notes-content hidden">
+                            <textarea id="nt-${t.id}">${t.notes||''}</textarea>
+                            <button class="btn btn-secondary" style="padding:9px; font-size:0.8rem" onclick="saveNote('${t.id}')">SALVA</button>
+                        </div>
+                        <div class="rate-grid">
+                            <button class="rate-btn" style="background:rgba(255,255,255,0.06);color:var(--text-dim)" onclick="rate('${t.id}',1)">Non Noto</button>
+                            <button class="rate-btn" style="background:rgba(125,211,252,0.12);color:var(--primary)" onclick="rate('${t.id}',2)">Incerto</button>
+                            <button class="rate-btn" style="background:rgba(52,211,153,0.15);color:var(--success)" onclick="rate('${t.id}',3)">Acquisito</button>
+                        </div>
+                    </div>`;
                 });
+
             } else if (type === 'calendar') {
                 target.innerHTML = `
                     <div class="card">
                         <div class="agenda-header">
                             <div class="nav-arrow" onclick="changeWeek(-1)">❮</div>
-                            <div class="week-label" id="subWeekDisplay">...</div>
+                            <div class="week-label" id="subWeekDisplay">—</div>
                             <div class="nav-arrow" onclick="changeWeek(1)">❯</div>
                         </div>
                         <div id="subAgendaWeekly"></div>
                     </div>`;
                 updateAgendaList(false);
+
             } else if (type === 'history') {
-                target.innerHTML = sub.topics.map(t => `
+                const examM = isExamMode(data.activeSub);
+                let topics = sub.topics;
+                if (examM) topics = topics.filter(t => t.triage === 3);
+                target.innerHTML = topics.length ? topics.map(t => `
                     <div class="card">
-                        <b>${t.name}</b><br>
-                        <small>PROSSIMO: ${t.next.split('-').reverse().join('/')}</small>
-                        <div class="triage-box" style="margin-top:15px;">
-                            <div class="t-dot ${t.triage==1?'active':''}" style="background:var(--success); padding:5px;" onclick="updateTriageInHistory('${t.id}', 1)">BASE</div>
-                            <div class="t-dot ${t.triage==2?'active':''}" style="background:var(--warning); padding:5px;" onclick="updateTriageInHistory('${t.id}', 2)">COMPLESSO</div>
-                            <div class="t-dot ${t.triage==3?'active':''}" style="background:var(--danger); padding:5px;" onclick="updateTriageInHistory('${t.id}', 3)">ESAME</div>
+                        <div style="font-weight:700; margin-bottom:6px;">${t.name}</div>
+                        <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:12px; font-family:'Space Mono',monospace;">PROSSIMO: ${t.next.split('-').reverse().join('/')}</div>
+                        <div class="triage-box">
+                            <div class="t-dot ${t.triage==1?'active':''}" style="background:var(--success);color:#000" onclick="updateTriageInHistory('${t.id}',1)">BASE</div>
+                            <div class="t-dot ${t.triage==2?'active':''}" style="background:var(--warning);color:#000" onclick="updateTriageInHistory('${t.id}',2)">COMPLESSO</div>
+                            <div class="t-dot ${t.triage==3?'active':''}" style="background:var(--danger);color:#fff" onclick="updateTriageInHistory('${t.id}',3)">ESAME</div>
                         </div>
-                        <div class="notes-toggle" onclick="toggleNotes('${t.id}')">VISUALIZZA NOTE</div>
+                        <div class="notes-toggle" onclick="toggleNotes('${t.id}')">▸ Note</div>
                         <div id="nb-${t.id}" class="notes-content hidden">
-                            <textarea id="nt-${t.id}">${t.notes || ""}</textarea>
-                            <button class="btn" style="padding:10px; font-size:1rem" onclick="saveNote('${t.id}')">SALVA NOTE</button>
+                            <textarea id="nt-${t.id}">${t.notes||''}</textarea>
+                            <button class="btn btn-secondary" style="padding:9px;font-size:0.8rem" onclick="saveNote('${t.id}')">SALVA</button>
                         </div>
-                        <div style="margin-top:10px; display:flex; justify-content:space-between">
-                            <span style="color:var(--primary); cursor:pointer; text-decoration:underline" onclick="openDateModal('${t.id}')">RIPIANIFICA</span>
-                            <span style="color:var(--danger); cursor:pointer" onclick="deleteTopic('${t.id}')">ELIMINA</span>
+                        <div style="margin-top:12px; display:flex; justify-content:space-between; font-size:0.82rem;">
+                            <span style="color:var(--primary); cursor:pointer;" onclick="openDateModal('${t.id}')">Ripianifica →</span>
+                            <span style="color:var(--danger); cursor:pointer;" onclick="deleteTopic('${t.id}')">Elimina</span>
                         </div>
-                    </div>`).join('');
+                    </div>`).join('') : `<div class="card" style="text-align:center; opacity:0.4; padding:30px;">Nessun argomento${examM ? ' in modalità esame' : ''}</div>`;
+
+            } else if (type === 'stats') {
+                renderStats(target, sub);
             }
         }
 
-        // Funzioni Core
+        // ── Statistiche ───────────────────────────────────────────────────────
+        function renderStats(target, sub) {
+            const topics = sub.topics;
+            const total = topics.length;
+            if (!total) { target.innerHTML = `<div class="card" style="text-align:center;opacity:0.4;padding:30px;">Nessun argomento registrato</div>`; return; }
+
+            const today = todayStr();
+            const acquired = topics.filter(t => t.interval >= 8).length;
+            const uncertain = topics.filter(t => t.interval > 1 && t.interval < 8).length;
+            const critical = topics.filter(t => t.fails >= 2).length;
+            const dueToday = topics.filter(t => t.next <= today).length;
+            const examCount = topics.filter(t => t.triage === 3).length;
+            const pct = n => total ? Math.round((n/total)*100) : 0;
+
+            target.innerHTML = `
+                <div class="card">
+                    <div class="section-label">Panoramica</div>
+                    <div class="stat-grid">
+                        <div class="stat-box">
+                            <div class="stat-number" style="color:var(--text)">${total}</div>
+                            <div class="stat-label">Totale</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-number" style="color:var(--warning)">${dueToday}</div>
+                            <div class="stat-label">Da Ripassare</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-number" style="color:var(--success)">${acquired}</div>
+                            <div class="stat-label">Acquisiti</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-number" style="color:var(--danger)">${critical}</div>
+                            <div class="stat-label">Critici</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="section-label">Distribuzione</div>
+                    <div class="progress-bar-wrap">
+                        <div class="progress-label"><span>Acquisiti</span><span>${acquired}/${total} (${pct(acquired)}%)</span></div>
+                        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct(acquired)}%; background:var(--success)"></div></div>
+                    </div>
+                    <div class="progress-bar-wrap">
+                        <div class="progress-label"><span>In Apprendimento</span><span>${uncertain}/${total} (${pct(uncertain)}%)</span></div>
+                        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct(uncertain)}%; background:var(--primary)"></div></div>
+                    </div>
+                    <div class="progress-bar-wrap">
+                        <div class="progress-label"><span>Priorità Esame</span><span>${examCount}/${total} (${pct(examCount)}%)</span></div>
+                        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct(examCount)}%; background:var(--exam-color)"></div></div>
+                    </div>
+                    <div class="progress-bar-wrap">
+                        <div class="progress-label"><span>Critici (≥2 fallimenti)</span><span>${critical}/${total} (${pct(critical)}%)</span></div>
+                        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct(critical)}%; background:var(--danger)"></div></div>
+                    </div>
+                </div>`;
+        }
+
+        // ── Export / Import ───────────────────────────────────────────────────
+        function exportData() {
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `studyhub_backup_${todayStr()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('✓ Backup esportato');
+        }
+
+        function handleImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (!imported.subjects) throw new Error('File non valido');
+                    data = imported;
+                    save(); render();
+                    showToast('✓ Dati importati correttamente');
+                } catch {
+                    showToast('⚠ Errore: file non valido');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        // ── Cold Spots ────────────────────────────────────────────────────────
+        function renderColdSpots() {
+            const spots = [];
+            Object.keys(data.subjects).forEach(s => {
+                data.subjects[s].topics.forEach(t => { if (t.fails >= 2) spots.push({n: t.name, s, f: t.fails}); });
+            });
+            const sec = document.getElementById('coldSpotsSection');
+            if (sec && spots.length > 0) {
+                sec.innerHTML = `<div class="cold-card">
+                    <div class="cold-title">⚠ Criticità rilevate</div>
+                    ${spots.map(x => `<div class="cold-item">
+                        <span>${x.n} <span style="opacity:0.5;font-size:0.78rem;">(${x.s})</span></span>
+                        <span style="color:var(--danger);font-family:'Space Mono',monospace;font-size:0.8rem;">${x.f}✕</span>
+                    </div>`).join('')}
+                </div>`;
+            }
+        }
+
+        // ── Funzioni Core ─────────────────────────────────────────────────────
         function addNewSubject() {
-            const val = document.getElementById('inSubName').value;
-            if(!val) return;
-            data.subjects[val] = { topics: [], color: colors[Object.keys(data.subjects).length % colors.length], examDate: null };
-            save(); closeModal('modalNewSubject'); setView('subject', val);
+            const val = document.getElementById('inSubName').value.trim();
+            if (!val) return;
+            data.subjects[val] = { topics: [], color: colors[Object.keys(data.subjects).length % colors.length], examDate: null, examModeManual: false };
+            save(); closeModal('modalNewSubject');
+            document.getElementById('inSubName').value = '';
+            setView('subject', val);
         }
 
         function confirmExamDate() {
             const val = document.getElementById('inExamDate').value;
-            if(!val.includes('/')) return;
+            if (!val.includes('/')) return;
             const p = val.split('/');
             data.subjects[data.activeSub].examDate = `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
             save(); closeModal('modalExamDate'); render();
         }
 
         function addTopic() {
-            const name = document.getElementById('inT').value;
-            if(!name) return;
-            data.subjects[data.activeSub].topics.push({ id: Date.now().toString(), name, notes: document.getElementById('inN').value, next: shiftDate(new Date(), 1), interval: 1, triage: data.triage, fails: 0 });
-            save(); setSubTab('study'); showToast("Registrato");
+            const name = document.getElementById('inT').value.trim();
+            if (!name) return;
+            data.subjects[data.activeSub].topics.push({
+                id: Date.now().toString(), name,
+                notes: document.getElementById('inN').value,
+                next: shiftDate(new Date(), 1), interval: 1,
+                triage: data.triage, fails: 0
+            });
+            save(); setSubTab('study'); showToast('✓ Registrato');
         }
 
-        function updateTriageInHistory(id, n) { data.subjects[data.activeSub].topics.find(x => x.id === id).triage = n; save(); render(); }
-        
+        function updateTriageInHistory(id, n) {
+            data.subjects[data.activeSub].topics.find(x => x.id === id).triage = n;
+            save(); render();
+        }
+
         function rate(id, q) {
             const t = data.subjects[data.activeSub].topics.find(x => x.id === id);
-            if(q === 1) { t.interval = 1; t.fails = (t.fails || 0) + 1; }
+            if (q === 1) { t.interval = 1; t.fails = (t.fails||0) + 1; }
             else { t.interval = q === 2 ? t.interval + 3 : t.interval + 7; }
             t.next = shiftDate(new Date(), t.interval);
             save(); render();
@@ -354,32 +981,23 @@
         function confirmManualDate() {
             const id = document.getElementById('editTopicId').value;
             const val = document.getElementById('inNewDate').value;
-            if(!val.includes('/')) return;
+            if (!val.includes('/')) return;
             const p = val.split('/');
             data.subjects[data.activeSub].topics.find(x => x.id === id).next = `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
             save(); closeModal('modalEditDate'); render();
         }
 
         function addExternalEvent() {
-            const title = document.getElementById('extTitle').value;
+            const title = document.getElementById('extTitle').value.trim();
             const d = document.getElementById('extDate').value;
-            if(!title || !d) return;
+            if (!title || !d) return;
             const p = d.split('/');
             data.externalEvents.push({ title, date: `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}` });
             save(); closeModal('modalExt'); render();
         }
 
-        function renderColdSpots() {
-            const spots = [];
-            Object.keys(data.subjects).forEach(s => { data.subjects[s].topics.forEach(t => { if(t.fails >= 2) spots.push({n: t.name, s: s}); }); });
-            const sec = document.getElementById('coldSpotsSection');
-            if(sec && spots.length > 0) {
-                sec.innerHTML = `<div class="card" style="border: 1px solid var(--danger)"><h3 style="color:var(--danger); margin:0 0 10px 0">CRITICITÀ RILEVATE</h3>${spots.map(x => `<div class="topic-card" style="border-left-color:red"><b>${x.n}</b> <small>(${x.s})</small></div>`).join('')}</div>`;
-            }
-        }
-
         let _deleteTargetId = null;
-        function deleteTopic(id) { 
+        function deleteTopic(id) {
             _deleteTargetId = id;
             document.getElementById('confirmDeleteBtn').onclick = () => {
                 data.subjects[data.activeSub].topics = data.subjects[data.activeSub].topics.filter(x => x.id !== _deleteTargetId);
@@ -387,17 +1005,20 @@
             };
             openModal('modalConfirmDelete');
         }
+
         function setTriage(n) { data.triage = n; setSubTab('study'); }
         function toggleNotes(id) { document.getElementById(`nb-${id}`).classList.toggle('hidden'); }
-        function saveNote(id) { data.subjects[data.activeSub].topics.find(x => x.id === id).notes = document.getElementById(`nt-${id}`).value; save(); showToast("Salvate"); }
-        function applyImprevisto() { 
-            const today = new Date().toISOString().split('T')[0];
-            data.subjects[data.activeSub].topics.forEach(t => { if(t.next <= today) t.next = shiftDate(today, 1); }); 
-            save(); render(); showToast("Spostato"); 
+        function saveNote(id) {
+            data.subjects[data.activeSub].topics.find(x => x.id === id).notes = document.getElementById(`nt-${id}`).value;
+            save(); showToast('✓ Note salvate');
+        }
+        function applyImprevisto() {
+            const today = todayStr();
+            data.subjects[data.activeSub].topics.forEach(t => { if (t.next <= today) t.next = shiftDate(today, 1); });
+            save(); render(); showToast('✓ Ripassi spostati di 1 giorno');
         }
 
         render();
     </script>
 </body>
 </html>
-

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Study Hub Ultra V9.0</title>
+    <title>Study Hub Ultra V9.1</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="apple-touch-icon" href="icon.png">
     <link rel="icon" type="image/png" href="icon.png">
@@ -22,9 +22,10 @@
         
         body { font-family: 'Roboto', sans-serif; background: var(--bg); margin: 0; padding: 0; color: var(--text); font-size: 19px; }
         
-        /* Notifiche Toast */
         #toast { visibility: hidden; min-width: 250px; background-color: var(--primary); color: #050a0f; text-align: center; border-radius: 8px; padding: 16px; position: fixed; z-index: 5000; left: 50%; bottom: 30px; transform: translateX(-50%); font-weight: 700; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
         #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
 
         .sidebar { background: #020406; border-bottom: 2px solid var(--border); padding: 15px; display: flex; gap: 12px; overflow-x: auto; position: sticky; top: 0; z-index: 1000; align-items: center; }
         .subject-tab { padding: 12px 24px; border-radius: 25px; cursor: pointer; white-space: nowrap; font-weight: 700; font-size: 1.1rem; border: 2px solid transparent; background: #1a2a3a; color: var(--text-dim); }
@@ -34,35 +35,38 @@
         .container { padding: 20px; max-width: 950px; margin: auto; }
         .card { background: var(--card-bg); border-radius: 20px; padding: 25px; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.8); margin-bottom: 25px; }
         
-        /* Navigazione */
-        .inner-nav { display: flex; justify-content: space-around; margin-bottom: 25px; border-bottom: 2px solid var(--border); overflow-x: auto; }
-        .inner-nav-item { padding: 15px; cursor: pointer; font-size: 0.95rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.5px; white-space: nowrap; }
+        .inner-nav { display: flex; justify-content: space-around; margin-bottom: 25px; border-bottom: 2px solid var(--border); }
+        .inner-nav-item { padding: 15px; cursor: pointer; font-size: 0.95rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.5px; }
         .inner-nav-item.active { color: var(--primary); border-bottom: 4px solid var(--primary); }
         
-        /* Agenda */
+        /* Agenda Styles */
         .agenda-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
-        .nav-arrow { cursor: pointer; font-size: 1.8rem; color: var(--primary); font-weight: bold; }
+        .nav-arrow { cursor: pointer; font-size: 1.8rem; color: var(--primary); font-weight: bold; padding: 0 15px; }
+        .week-label { font-weight: 700; color: var(--primary); font-size: 1.3rem; text-transform: uppercase; }
+
         .day-section { margin-bottom: 30px; }
         .day-title { font-weight: 700; font-size: 1.4rem; color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: baseline; }
         
-        .topic-card { background: #121e2a; border-radius: 12px; padding: 15px; margin-bottom: 12px; border-left: 6px solid; border: 1px solid #1c2b36; border-left-width: 6px; position: relative; }
+        .topic-card { background: #121e2a; border-radius: 12px; padding: 15px; margin-bottom: 12px; border-left: 6px solid; border: 1px solid #1c2b36; border-left-width: 6px; }
+        .topic-name { font-weight: 700; font-size: 1.2rem; display: block; margin-bottom: 4px; }
+        .subject-name { font-style: italic; font-size: 0.95rem; opacity: 0.8; }
         .external-event { border-left-color: #7f8c8d; color: #bdc3c7; background: #0a1118; font-style: italic; }
 
-        /* Stamina Bar */
-        .stamina-container { height: 10px; background: #1a2a3a; border-radius: 5px; margin: 10px 0; overflow: hidden; }
-        .stamina-fill { height: 100%; background: var(--stamina); transition: width 0.5s; }
+        .stamina-container { height: 8px; background: #1a2a3a; border-radius: 4px; margin-top: 10px; overflow: hidden; }
+        .stamina-fill { height: 100%; transition: width 0.5s; }
 
-        /* UI Elements */
+        /* Note hidden logic */
+        .hidden { display: none !important; }
+        .notes-toggle { color: var(--primary); cursor: pointer; font-weight: 700; font-size: 1.1rem; margin: 15px 0; display: inline-block; text-decoration: underline; }
+        .notes-content { background: #020406; padding: 15px; border-radius: 12px; border: 1px solid var(--primary); margin: 15px 0; }
+        
         .btn { border: none; padding: 18px; border-radius: 12px; cursor: pointer; font-weight: 700; color: #050a0f; width: 100%; margin-top: 10px; font-size: 1.2rem; background: var(--primary); text-transform: uppercase; }
         .btn-danger { background: var(--danger); color: #fff; }
-        .hidden { display: none !important; }
-        input, textarea { width: 100%; padding: 18px; margin-bottom: 15px; border-radius: 12px; border: 2px solid var(--border); background: #020406; color: #fff; font-size: 1.2rem; font-family: 'Roboto'; }
-
-        /* Modali */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 4000; display: flex; align-items: center; justify-content: center; }
         
-        /* Stats Charts */
-        .chart-bar { height: 20px; background: var(--primary); margin: 5px 0; border-radius: 10px; position: relative; }
+        input, textarea { width: 100%; padding: 18px; margin-bottom: 15px; border-radius: 12px; border: 2px solid var(--border); background: #020406; color: #fff; font-size: 1.2rem; font-family: 'Roboto'; }
+        
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 4000; display: flex; align-items: center; justify-content: center; }
+        .chart-bar { height: 20px; background: var(--primary); margin: 10px 0; border-radius: 10px; }
     </style>
 </head>
 <body>
@@ -82,14 +86,15 @@
 
 <div id="subjectModal" class="modal-overlay hidden">
     <div class="card" style="width: 90%; max-width: 400px;">
-        <h2>Nuova Materia</h2>
-        <input type="text" id="newSubName" placeholder="Es: Neuroanatomia">
-        <button class="btn" onclick="addSubject()">Aggiungi</button>
-        <button class="btn" style="background:#333; color:white; margin-top:10px;" onclick="toggleModal('subjectModal', false)">Annulla</button>
+        <h2 style="color:var(--primary)">NUOVA MATERIA</h2>
+        <input type="text" id="newSubName" placeholder="Nome esame...">
+        <button class="btn" onclick="addSubject()">AGGIUNGI</button>
+        <button class="btn" style="background:#333; color:white; margin-top:10px;" onclick="toggleModal('subjectModal', false)">ANNULLA</button>
     </div>
 </div>
 
 <div id="subjectTemplate" class="hidden">
+    <button class="btn btn-danger" onclick="applyImprevisto()">⚠️ GESTISCI IMPREVISTO (+1g)</button>
     <div class="inner-nav">
         <div class="inner-nav-item" id="nav-study" onclick="setSubTab('study')">Studio</div>
         <div class="inner-nav-item" id="nav-ripasso" onclick="setSubTab('ripasso')">Ripasso</div>
@@ -100,17 +105,17 @@
 </div>
 
 <script>
-    // Recupero Dati Storici
     let data = JSON.parse(localStorage.getItem('multiSubjectDataV6')) || { 
-        subjects: {}, activeView: 'global', activeSub: null, externalEvents: [], staminaTarget: 100
+        subjects: {}, activeView: 'global', activeSub: null, externalEvents: [], activeTab: 'study'
     };
     let weekOffset = 0;
+    const defaultColors = ['#a2d2ff', '#74ee15', '#ffe700', '#f000ff', '#ff5252', '#00e676'];
 
     function save() { localStorage.setItem('multiSubjectDataV6', JSON.stringify(data)); }
     function showToast(msg) { const x = document.getElementById("toast"); x.innerHTML = msg; x.className = "show"; setTimeout(() => x.className = "", 3000); }
     function toggleModal(id, show) { document.getElementById(id).classList.toggle('hidden', !show); }
+    function shiftDate(s, d) { let date = new Date(s); date.setDate(date.getDate() + d); return date.toISOString().split('T')[0]; }
 
-    // --- LOGICA VISTE ---
     function setView(view, subName = null) {
         data.activeView = view;
         data.activeSub = subName;
@@ -122,7 +127,6 @@
     function render() {
         const bar = document.getElementById('subjectBar');
         bar.querySelectorAll('.subject-tab:not(.special-tab)').forEach(e => e.remove());
-        
         document.getElementById('globalBtn').classList.toggle('active', data.activeView === 'global');
         document.getElementById('statsBtn').classList.toggle('active', data.activeView === 'stats');
 
@@ -131,7 +135,7 @@
             btn.className = `subject-tab ${ (data.activeView === 'subject' && data.activeSub === sub) ? 'active' : '' }`;
             btn.innerHTML = `${sub} <span onclick="event.stopPropagation(); editSub('${sub}')">⚙️</span>`;
             btn.onclick = () => setView('subject', sub);
-            bar.insertBefore(btn, bar.children[2]);
+            bar.insertBefore(btn, document.getElementById('langPicker'));
         });
 
         const container = document.getElementById('appContent');
@@ -140,17 +144,16 @@
         else renderSubject(container);
     }
 
-    // --- AGENDA GLOBALE ---
     function renderGlobal(container) {
         container.innerHTML = `
             <div class="card">
                 <div class="agenda-header">
                     <div class="nav-arrow" onclick="changeWeek(-1)">❮</div>
-                    <div class="week-label" id="weekDisplay">Caricamento...</div>
+                    <div class="week-label" id="weekDisplay">...</div>
                     <div class="nav-arrow" onclick="changeWeek(1)">❯</div>
                 </div>
                 <div id="agendaWeekly"></div>
-                <button class="btn" style="background:#1a2a3a; font-size:0.8rem;" onclick="importExternal()">Sincronizza Impegni Esterni</button>
+                <button class="btn" style="background:#1a2a3a; font-size:0.8rem;" onclick="addExternal()">+ AGGIUNGI IMPEGNO ESTERNO</button>
             </div>`;
         renderAgenda(true);
     }
@@ -166,6 +169,7 @@
         
         document.getElementById(isGlobal ? 'weekDisplay' : 'subWeekDisplay').innerText = `Settimana ${start.getDate()}/${start.getMonth()+1}`;
         target.innerHTML = "";
+        const dayNames = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"];
 
         for (let i = 0; i < 7; i++) {
             const d = new Date(start); d.setDate(start.getDate() + i);
@@ -177,81 +181,88 @@
             subs.forEach(s => {
                 data.subjects[s].topics.forEach(t => {
                     if(t.next === dStr) {
-                        dayHtml += `<div class="topic-card" style="border-left-color:${data.subjects[s].color}; color:${data.subjects[s].color}"><span style="font-weight:bold">${t.name}</span><br><small>${s}</small></div>`;
-                        load += 20;
+                        dayHtml += `
+                            <div class="topic-card" style="border-left-color:${data.subjects[s].color}; color:${data.subjects[s].color}">
+                                <span class="topic-name">${t.name}</span>
+                                <span class="subject-name">${s}</span>
+                            </div>`;
+                        load += 25;
                     }
                 });
             });
 
-            // Impegni Esterni
             data.externalEvents.filter(e => e.date === dStr).forEach(e => {
                 dayHtml += `<div class="topic-card external-event">🏛️ ${e.title}</div>`;
             });
 
-            const staminaPerc = Math.min(load, 100);
             target.innerHTML += `
                 <div class="day-section">
                     <div class="day-title" style="${dStr === now.toISOString().split('T')[0] ? 'color:white; border-bottom:2px solid var(--primary)' : ''}">
-                        ${d.getDate()} ${d.toLocaleDateString('it-IT',{month:'short'})}
+                        ${d.getDate()} ${d.toLocaleDateString('it-IT',{month:'short'})} <span style="font-size:0.8rem; opacity:0.5; margin-left:10px;">${dayNames[i]}</span>
                     </div>
-                    ${dayHtml || '<p style="opacity:0.2">Nessun impegno</p>'}
-                    ${load > 0 ? `<div class="stamina-container"><div class="stamina-fill" style="width:${staminaPerc}%; background:${load > 80 ? 'var(--danger)' : 'var(--stamina)'}"></div></div>` : ''}
+                    ${dayHtml || '<p style="opacity:0.2; font-size:0.9rem; margin-left:10px;">Nessun ripasso</p>'}
+                    ${load > 0 ? `<div class="stamina-container"><div class="stamina-fill" style="width:${Math.min(load, 100)}%; background:${load > 75 ? 'var(--danger)' : 'var(--stamina)'}"></div></div>` : ''}
                 </div>`;
         }
     }
 
-    // --- ANALISI STATISTICHE ---
-    function renderStats(container) {
-        let totalTopics = 0;
-        let subjectsHtml = "";
-        Object.keys(data.subjects).forEach(s => {
-            const count = data.subjects[s].topics.length;
-            totalTopics += count;
-            subjectsHtml += `<div>${s}: ${count} argomenti <div class="chart-bar" style="width:${Math.min(count*10, 100)}%; background:${data.subjects[s].color}"></div></div>`;
-        });
-
-        container.innerHTML = `
-            <div class="card">
-                <h2 style="color:var(--primary)">STATISTICHE STUDIO</h2>
-                <p>Argomenti Totali Memoria: <b>${totalTopics}</b></p>
-                ${subjectsHtml}
-                <div style="margin-top:30px; padding:15px; background:rgba(162, 210, 255, 0.1); border-radius:12px;">
-                    <small>💡 Più la barra è lunga, più l'argomento è consolidato nel database.</small>
-                </div>
-            </div>`;
-    }
-
-    // --- LOGICA MATERIA ---
     function renderSubject(container) {
         container.innerHTML = document.getElementById('subjectTemplate').innerHTML;
-        setSubTab('study');
+        setSubTab(data.activeTab || 'study');
     }
 
     function setSubTab(type) {
+        data.activeTab = type;
         const sub = data.subjects[data.activeSub];
         const target = document.getElementById('tabContent');
         document.querySelectorAll('.inner-nav-item').forEach(i => i.classList.toggle('active', i.id.includes(type)));
 
         if (type === 'study') {
-            target.innerHTML = `<div class="card"><h2>NUOVO STUDIO</h2><input id="tI" placeholder="Argomento"><textarea id="nI" placeholder="Note..."></textarea><button class="btn" onclick="addTopic()">REGISTRA</button></div>`;
+            target.innerHTML = `<div class="card"><h2 style="color:var(--primary)">NUOVO STUDIO</h2><input id="tI" placeholder="Argomento"><textarea id="nI" placeholder="Note iniziali..."></textarea><button class="btn" onclick="addTopic()">REGISTRA</button></div>`;
         } else if (type === 'ripasso') {
             const today = new Date().toISOString().split('T')[0];
             const due = sub.topics.filter(t => t.next <= today);
             target.innerHTML = due.length ? "" : "<h2>Tutto ripassato! 🎉</h2>";
-            due.forEach(t => target.innerHTML += `<div class="card" style="border-left:8px solid ${sub.color}"><h3>${t.name}</h3><div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;"><button class="btn" style="background:#333; color:white" onclick="rateTopic('${t.id}', 1)">DIFF.</button><button class="btn" style="background:#007bff; color:white" onclick="rateTopic('${t.id}', 2)">BUONO</button><button class="btn" style="background:var(--stamina); color:black" onclick="rateTopic('${t.id}', 3)">FACILE</button></div></div>`);
+            due.forEach(t => {
+                target.innerHTML += `
+                    <div class="card" style="border-left:8px solid ${sub.color}">
+                        <h2 style="margin:0">${t.name}</h2>
+                        <div class="notes-toggle" onclick="document.getElementById('n-rip-${t.id}').classList.toggle('hidden')">📝 NOTE</div>
+                        <div id="n-rip-${t.id}" class="notes-content hidden">
+                            <textarea id="nt-rip-${t.id}">${t.notes || ""}</textarea>
+                            <button class="btn" style="padding:10px; font-size:1rem" onclick="updateNote('${t.id}', 'rip')">SALVA</button>
+                        </div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:15px">
+                            <button class="btn" style="background:#333; color:white" onclick="rateTopic('${t.id}', 1)">DIFF.</button>
+                            <button class="btn" style="background:#007bff; color:white" onclick="rateTopic('${t.id}', 2)">BUONO</button>
+                            <button class="btn" style="background:var(--stamina); color:black" onclick="rateTopic('${t.id}', 3)">FACILE</button>
+                        </div>
+                    </div>`;
+            });
         } else if (type === 'calendar') {
             target.innerHTML = `<div class="card"><div class="agenda-header"><div class="nav-arrow" onclick="changeWeek(-1)">❮</div><div class="week-label" id="subWeekDisplay">...</div><div class="nav-arrow" onclick="changeWeek(1)">❯</div></div><div id="subAgendaWeekly"></div></div>`;
             renderAgenda(false);
         } else if (type === 'history') {
-            target.innerHTML = sub.topics.map(t => `<div class="card"><b>${t.name}</b><br><small>Prossimo: ${t.next}</small> <span style="color:red; cursor:pointer; float:right;" onclick="delTopic('${t.id}')">ELIMINA</span></div>`).join('');
+            target.innerHTML = sub.topics.map(t => `
+                <div class="card">
+                    <b>${t.name}</b><br><small>Prossimo: ${t.next.split('-').reverse().join('/')}</small>
+                    <div class="notes-toggle" onclick="document.getElementById('n-his-${t.id}').classList.toggle('hidden')">📝 NOTE</div>
+                    <div id="n-his-${t.id}" class="notes-content hidden">
+                        <textarea id="nt-his-${t.id}">${t.notes || ""}</textarea>
+                        <button class="btn" style="padding:10px; font-size:1rem" onclick="updateNote('${t.id}', 'his')">SALVA</button>
+                    </div>
+                    <div style="margin-top:10px; display:flex; justify-content:space-between">
+                        <span style="color:var(--primary); cursor:pointer; text-decoration:underline" onclick="manualDateEdit('${t.id}')">SPOSTA</span>
+                        <span style="color:var(--danger); cursor:pointer; text-decoration:underline" onclick="delTopic('${t.id}')">ELIMINA</span>
+                    </div>
+                </div>`).join('');
         }
     }
 
-    // --- AZIONI ---
     function addSubject() {
         const n = document.getElementById('newSubName').value;
         if(!n) return;
-        data.subjects[n] = { topics: [], color: '#' + Math.floor(Math.random()*16777215).toString(16) };
+        data.subjects[n] = { topics: [], color: defaultColors[Object.keys(data.subjects).length % 6] };
         toggleModal('subjectModal', false);
         save(); render();
     }
@@ -259,8 +270,18 @@
     function addTopic() {
         const name = document.getElementById('tI').value;
         if(!name) return;
-        data.subjects[data.activeSub].topics.push({ id: Date.now().toString(), name, next: shiftDate(new Date(), 1), interval: 1 });
-        save(); setSubTab('study'); showToast("Registrato!");
+        data.subjects[data.activeSub].topics.push({ 
+            id: Date.now().toString(), name, notes: document.getElementById('nI').value, 
+            next: shiftDate(new Date(), 1), interval: 1 
+        });
+        save(); render(); showToast("Registrato!");
+    }
+
+    function updateNote(id, section) {
+        const t = data.subjects[data.activeSub].topics.find(x => x.id === id);
+        t.notes = document.getElementById(`nt-${section}-${id}`).value;
+        save(); showToast("Nota salvata!");
+        document.getElementById(`n-${section}-${id}`).classList.add('hidden');
     }
 
     function rateTopic(id, q) {
@@ -268,22 +289,38 @@
         const today = new Date().toISOString().split('T')[0];
         t.interval = q === 1 ? 1 : (q === 2 ? t.interval + 3 : t.interval + 7);
         t.next = shiftDate(today, t.interval);
-        save(); setSubTab('ripasso'); showToast("Aggiornato!");
+        save(); render(); showToast("Aggiornato!");
     }
 
-    function importExternal() {
-        const title = prompt("Titolo impegno (es. Tirocinio):");
-        const date = prompt("Data (AAAA-MM-GG):");
+    function renderStats(container) {
+        let subjectsHtml = "";
+        Object.keys(data.subjects).forEach(s => {
+            const count = data.subjects[s].topics.length;
+            subjectsHtml += `<div>${s}: ${count} argomenti <div class="chart-bar" style="width:${Math.min(count*10, 100)}%; background:${data.subjects[s].color}"></div></div>`;
+        });
+        container.innerHTML = `<div class="card"><h2 style="color:var(--primary)">ANALISI MEMORIA</h2>${subjectsHtml || 'Nessun dato'}</div>`;
+    }
+
+    function addExternal() {
+        const title = prompt("Impegno (es. Lezione):");
+        const date = prompt("Data (GG/MM/AAAA):");
         if(title && date) {
-            data.externalEvents.push({ title, date });
+            const p = date.split('/');
+            const dStr = `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+            data.externalEvents.push({ title, date: dStr });
             save(); render();
         }
     }
 
-    function shiftDate(s, d) { let date = new Date(s); date.setDate(date.getDate() + d); return date.toISOString().split('T')[0]; }
-    function delTopic(id) { data.subjects[data.activeSub].topics = data.subjects[data.activeSub].topics.filter(x => x.id !== id); save(); setSubTab('history'); }
+    function manualDateEdit(id) {
+        const t = data.subjects[data.activeSub].topics.find(x => x.id === id);
+        const n = prompt("Data (GG/MM/AAAA):", t.next.split('-').reverse().join('/'));
+        if(n) { const p = n.split('/'); t.next = `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`; save(); render(); }
+    }
 
-    // Start
+    function delTopic(id) { if(confirm("Elimina?")) { data.subjects[data.activeSub].topics = data.subjects[data.activeSub].topics.filter(x => x.id !== id); save(); render(); }}
+    function editSub(old) { const c = prompt("Nuovo colore HEX:", data.subjects[old].color); if(c) { data.subjects[old].color = c; save(); render(); }}
+
     render();
 </script>
 </body>

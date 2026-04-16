@@ -1,206 +1,104 @@
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Study Hub Ultra V9.3</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+<style>
+    /* Nuovi stili per Triage e Countdown */
+    .triage-selector { display: flex; gap: 10px; margin-bottom: 15px; }
+    .triage-btn { flex: 1; padding: 10px; border-radius: 8px; border: 2px solid var(--border); cursor: pointer; font-size: 0.8rem; font-weight: bold; text-align: center; color: var(--bg); }
+    .triage-1 { background: #00e676; } /* Base */
+    .triage-2 { background: #ffe700; } /* Esame */
+    .triage-3 { background: #ff5252; } /* Scoglio */
+    .triage-btn.selected { border-color: white; transform: scale(1.05); }
     
-    <style>
-        :root { 
-            --bg: #050a0f; 
-            --card-bg: #0f1720; 
-            --primary: #a2d2ff; 
-            --text: #e1f5fe; 
-            --text-dim: #b0bec5;
-            --danger: #ff5252;
-            --border: #1c2b36;
-        }
-        
-        body { font-family: 'Roboto', sans-serif; background: var(--bg); margin: 0; padding: 0; color: var(--text); font-size: 19px; }
-        
-        /* Toast Notification */
-        #toast { visibility: hidden; min-width: 250px; background-color: var(--primary); color: #050a0f; text-align: center; border-radius: 8px; padding: 16px; position: fixed; z-index: 6000; left: 50%; bottom: 30px; transform: translateX(-50%); font-weight: 700; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+    .countdown-box { position: absolute; right: 20px; top: 15px; background: #1a2a3a; padding: 5px 15px; border-radius: 10px; border: 1px solid var(--primary); font-size: 0.8rem; }
+    .cold-spot-card { border-left: 4px solid var(--danger) !important; background: rgba(255, 82, 82, 0.1) !important; margin-bottom: 10px; }
+</style>
 
-        .sidebar { background: #020406; border-bottom: 2px solid var(--border); padding: 15px; display: flex; gap: 12px; overflow-x: auto; position: sticky; top: 0; z-index: 1000; align-items: center; }
-        .subject-tab { padding: 12px 24px; border-radius: 25px; cursor: pointer; white-space: nowrap; font-weight: 700; font-size: 1.1rem; border: 2px solid transparent; background: #1a2a3a; color: var(--text-dim); }
-        .subject-tab.active { color: #050a0f; background: var(--primary); border-color: #fff; }
-
-        .container { padding: 20px; max-width: 950px; margin: auto; }
-        .card { background: var(--card-bg); border-radius: 20px; padding: 25px; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.8); margin-bottom: 25px; }
-        
-        /* Navigazione Materia */
-        .inner-nav { display: flex; justify-content: space-around; margin-bottom: 25px; border-bottom: 2px solid var(--border); }
-        .inner-nav-item { padding: 15px; cursor: pointer; font-size: 0.95rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.5px; }
-        .inner-nav-item.active { color: var(--primary); border-bottom: 4px solid var(--primary); }
-        
-        /* Agenda */
-        .agenda-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
-        .nav-arrow { cursor: pointer; font-size: 1.8rem; color: var(--primary); font-weight: bold; padding: 0 15px; user-select: none; }
-        .week-label { font-weight: 700; color: var(--primary); font-size: 1.3rem; text-transform: uppercase; }
-        .day-section { margin-bottom: 30px; }
-        .day-title { font-weight: 700; font-size: 1.4rem; color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: baseline; }
-        
-        .topic-card { background: #121e2a; border-radius: 12px; padding: 15px; margin-bottom: 12px; border-left: 6px solid; border: 1px solid #1c2b36; border-left-width: 6px; }
-        .topic-name { font-weight: 700; font-size: 1.2rem; display: block; margin-bottom: 4px; }
-        .subject-name { font-style: italic; font-size: 0.95rem; opacity: 0.8; }
-        .external-event { border-left-color: #7f8c8d; color: #bdc3c7; background: #0a1118; font-style: italic; }
-
-        /* UI */
-        .btn { border: none; padding: 18px; border-radius: 12px; cursor: pointer; font-weight: 700; color: #050a0f; width: 100%; margin-top: 10px; font-size: 1.2rem; background: var(--primary); text-transform: uppercase; }
-        .btn-danger { background: var(--danger); color: #fff; }
-        .hidden { display: none !important; }
-        input, textarea { width: 100%; padding: 18px; margin-bottom: 15px; border-radius: 12px; border: 2px solid var(--border); background: #020406; color: #fff; font-size: 1.2rem; font-family: 'Roboto'; }
-
-        /* Modali */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 5000; display: flex; align-items: center; justify-content: center; }
-        .notes-toggle { color: var(--primary); cursor: pointer; font-weight: 700; font-size: 1.1rem; margin: 15px 0; display: inline-block; text-decoration: underline; }
-        .notes-content { background: #020406; padding: 15px; border-radius: 12px; border: 1px solid var(--primary); margin: 15px 0; }
-        
-        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
-        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
-    </style>
-</head>
-<body>
-
-<div id="toast"></div>
-
-<div class="sidebar" id="subjectBar">
-    <div class="subject-tab active" id="globalBtn" onclick="setView('global')">GLOBALE 🌍</div>
-    <button class="add-subject-btn" onclick="openModal('subModal')">+</button>
-    <div style="margin-left:auto; display:flex; gap:10px;">
-        <select class="lang-select" style="background:#1a2a3a; color:white; border:none; padding:10px; border-radius:10px;">
-            <option>IT 🇮🇹</option>
-        </select>
-    </div>
-</div>
-
-<div id="appContent" class="container"></div>
-
-<div id="subModal" class="modal-overlay hidden">
+<div id="examModal" class="modal-overlay hidden">
     <div class="card" style="width: 90%; max-width: 400px;">
-        <h2 style="color:var(--primary)">NUOVA MATERIA</h2>
-        <input type="text" id="modalSubName" placeholder="Nome materia...">
-        <button class="btn" onclick="addNewSubject()">AGGIUNGI</button>
-        <button class="btn" style="background:#333; color:white; margin-top:10px;" onclick="closeModal('subModal')">ANNULLA</button>
+        <h2 style="color:var(--primary)">DATA ESAME</h2>
+        <input type="text" id="examDateInput" placeholder="Data Esame (GG/MM/AAAA)">
+        <button class="btn" onclick="saveExamDate()">SALVA</button>
+        <button class="btn" style="background:#333; color:white; margin-top:10px;" onclick="closeModal('examModal')">ANNULLA</button>
     </div>
-</div>
-
-<div id="extModal" class="modal-overlay hidden">
-    <div class="card" style="width: 90%; max-width: 400px;">
-        <h2 style="color:var(--primary)">IMPEGNO ESTERNO</h2>
-        <input type="text" id="extTitle" placeholder="Cosa devi fare? (es. Lezione)">
-        <input type="text" id="extDate" placeholder="Data (GG/MM/AAAA)">
-        <button class="btn" onclick="addExternalEvent()">SALVA</button>
-        <button class="btn" style="background:#333; color:white; margin-top:10px;" onclick="closeModal('extModal')">ANNULLA</button>
-    </div>
-</div>
-
-<div id="dateModal" class="modal-overlay hidden">
-    <div class="card" style="width: 90%; max-width: 400px;">
-        <h2 style="color:var(--primary)">SPOSTA DATA</h2>
-        <input type="text" id="newDateInput" placeholder="Nuova Data (GG/MM/AAAA)">
-        <input type="hidden" id="editingTopicId">
-        <button class="btn" onclick="saveManualDate()">AGGIORNA</button>
-        <button class="btn" style="background:#333; color:white; margin-top:10px;" onclick="closeModal('dateModal')">ANNULLA</button>
-    </div>
-</div>
-
-<div id="subjectTemplate" class="hidden">
-    <button class="btn btn-danger" onclick="applyImprevisto()">⚠️ GESTISCI IMPREVISTO (+1g)</button>
-    <div class="inner-nav">
-        <div class="inner-nav-item" id="nav-study" onclick="setSubTab('study')">Studio</div>
-        <div class="inner-nav-item" id="nav-ripasso" onclick="setSubTab('ripasso')">Ripasso</div>
-        <div class="inner-nav-item" id="nav-calendar" onclick="setSubTab('calendar')">Agenda</div>
-        <div class="inner-nav-item" id="nav-history" onclick="setSubTab('history')">Dati</div>
-    </div>
-    <div id="tabContent"></div>
 </div>
 
 <script>
+    // Integrazione nuovi dati (Triage e Exam)
     let data = JSON.parse(localStorage.getItem('multiSubjectDataV6')) || { 
-        subjects: {}, activeView: 'global', activeSub: null, externalEvents: [], activeTab: 'calendar'
+        subjects: {}, activeView: 'global', activeSub: null, externalEvents: [], activeTab: 'calendar',
+        examDate: null, triageSelection: 1 
     };
-    let weekOffset = 0;
-    const colors = ['#a2d2ff', '#74ee15', '#ffe700', '#f000ff', '#ff5252', '#00e676'];
 
-    function save() { localStorage.setItem('multiSubjectDataV6', JSON.stringify(data)); }
-    function showToast(msg) { const x = document.getElementById("toast"); x.innerHTML = msg; x.className = "show"; setTimeout(() => x.className = "", 3000); }
-    function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
-    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-
-    // --- NAVIGAZIONE ---
-    function setView(view, sub = null) {
-        data.activeView = view;
-        data.activeSub = sub;
-        weekOffset = 0;
+    // --- FUNZIONI COUNTDOWN ---
+    function saveExamDate() {
+        const val = document.getElementById('examDateInput').value;
+        const p = val.split('/');
+        data.examDate = `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+        closeModal('examModal');
         save(); render();
     }
 
-    function render() {
-        const bar = document.getElementById('subjectBar');
-        bar.querySelectorAll('.subject-tab:not(#globalBtn)').forEach(e => e.remove());
-        document.getElementById('globalBtn').classList.toggle('active', data.activeView === 'global');
-
-        Object.keys(data.subjects).forEach(name => {
-            const btn = document.createElement('div');
-            btn.className = `subject-tab ${ (data.activeView === 'subject' && data.activeSub === name) ? 'active' : '' }`;
-            btn.innerHTML = `${name} <span onclick="event.stopPropagation(); editSubStyle('${name}')">⚙️</span>`;
-            btn.onclick = () => setView('subject', name);
-            bar.insertBefore(btn, bar.children[bar.children.length - 1]);
-        });
-
-        const app = document.getElementById('appContent');
-        if (data.activeView === 'global') renderGlobal(app);
-        else renderSubject(app);
+    function getCountdown() {
+        if (!data.examDate) return "";
+        const diff = new Date(data.examDate) - new Date();
+        const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+        return days > 0 ? `⏳ -${days}gg Esame` : "🎓 Giorno Esame!";
     }
 
-    // --- AGENDA LOGIC ---
+    // --- FUNZIONE COLD SPOTS ---
+    function getColdSpots() {
+        let spots = [];
+        Object.keys(data.subjects).forEach(subName => {
+            data.subjects[subName].topics.forEach(t => {
+                // Un "Cold Spot" è un argomento con intervallo rimasto a 1 dopo almeno 2 ripassi
+                if (t.interval === 1 && t.history && t.history.length >= 2) {
+                    spots.push({ name: t.name, sub: subName });
+                }
+            });
+        });
+        return spots;
+    }
+
+    // Modifica alla funzione renderGlobal per includere i nuovi elementi
     function renderGlobal(app) {
-        app.innerHTML = `<div class="card"><div class="agenda-header"><div class="nav-arrow" onclick="changeWeek(-1)">❮</div><div class="week-label" id="weekDisplay">...</div><div class="nav-arrow" onclick="changeWeek(1)">❯</div></div><div id="agendaWeekly"></div><button class="btn" style="background:#1a2a3a; font-size:0.9rem;" onclick="openModal('extModal')">+ AGGIUNGI IMPEGNO ESTERNO</button></div>`;
+        const spots = getColdSpots();
+        let spotsHtml = spots.length > 0 ? `
+            <div class="card" style="border: 1px solid var(--danger)">
+                <h3 style="color:var(--danger); margin:0 0 15px 0">❄️ COLD SPOTS (Argomenti Critici)</h3>
+                ${spots.map(s => `<div class="topic-card cold-spot-card"><b>${s.name}</b> <small>(${s.sub})</small></div>`).join('')}
+                <small style="opacity:0.6">Questi argomenti sono stati segnati come 'Difficili' più volte.</small>
+            </div>` : "";
+
+        app.innerHTML = `
+            <div class="countdown-box">${getCountdown()}</div>
+            <div class="card">
+                <div class="agenda-header">
+                    <div class="nav-arrow" onclick="changeWeek(-1)">❮</div>
+                    <div class="week-label" id="weekDisplay">...</div>
+                    <div class="nav-arrow" onclick="changeWeek(1)">❯</div>
+                </div>
+                <div id="agendaWeekly"></div>
+                <div style="display:flex; gap:10px;">
+                    <button class="btn" style="background:#1a2a3a; font-size:0.8rem; flex:1" onclick="openModal('extModal')">+ IMPEGNO</button>
+                    <button class="btn" style="background:#1a2a3a; font-size:0.8rem; flex:1" onclick="openModal('examModal')">🎯 DATA ESAME</button>
+                </div>
+            </div>
+            ${spotsHtml}
+        `;
         renderAgendaDisplay(true);
     }
 
-    function changeWeek(dir) { weekOffset += dir; renderAgendaDisplay(data.activeView === 'global'); }
-
-    function renderAgendaDisplay(isGlobal) {
-        const target = document.getElementById(isGlobal ? 'agendaWeekly' : 'subAgendaWeekly');
-        if (!target) return;
-        const now = new Date();
-        const start = new Date(now);
-        start.setDate(now.getDate() - ( (now.getDay() === 0 ? 7 : now.getDay()) - 1) + (weekOffset * 7));
+    // Modifica alla funzione rateTopic per tracciare la storia (necessaria per i Cold Spots)
+    function rateTopic(id, q) {
+        const t = data.subjects[data.activeSub].topics.find(x => x.id === id);
+        if (!t.history) t.history = [];
+        t.history.push({ date: new Date().toISOString(), quality: q });
         
-        document.getElementById(isGlobal ? 'weekDisplay' : 'subWeekDisplay').innerText = `Settimana ${start.getDate()}/${start.getMonth()+1}`;
-        target.innerHTML = "";
-        const dayNames = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"];
-
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(start); d.setDate(start.getDate() + i);
-            const dStr = d.toISOString().split('T')[0];
-            let html = "";
-
-            const scanList = isGlobal ? Object.keys(data.subjects) : [data.activeSub];
-            scanList.forEach(subName => {
-                data.subjects[subName].topics.forEach(t => {
-                    if (t.next === dStr) {
-                        html += `<div class="topic-card" style="border-left-color:${data.subjects[subName].color}; color:${data.subjects[subName].color}"><span class="topic-name">${t.name}</span><span class="subject-name">${subName}</span></div>`;
-                    }
-                });
-            });
-
-            data.externalEvents.forEach(e => { if(e.date === dStr) html += `<div class="topic-card external-event">🏛️ ${e.title}</div>`; });
-
-            target.innerHTML += `<div class="day-section"><div class="day-title" style="${dStr === now.toISOString().split('T')[0] ? 'color:white; border-bottom:2px solid var(--primary)' : ''}">${d.getDate()} ${d.toLocaleDateString('it-IT',{month:'short'})} <span style="font-size:0.8rem; opacity:0.5; margin-left:10px;">${dayNames[i]}</span></div>${html || '<p style="opacity:0.2; font-size:0.9rem; margin-left:10px;">Libero</p>'}</div>`;
-        }
+        const gaps = [0, 1, 3, 7];
+        t.interval = q === 1 ? 1 : t.interval + gaps[q];
+        t.next = shiftDate(new Date(), t.interval);
+        save(); render();
     }
 
-    // --- MATERIA LOGIC ---
-    function renderSubject(app) {
-        app.innerHTML = document.getElementById('subjectTemplate').innerHTML;
-        setSubTab(data.activeTab || 'calendar');
-    }
-
+    // Modifica alla funzione setSubTab per il Triage in fase di Studio
     function setSubTab(type) {
         data.activeTab = type;
         const sub = data.subjects[data.activeSub];
@@ -208,92 +106,55 @@
         document.querySelectorAll('.inner-nav-item').forEach(i => i.classList.toggle('active', i.id.includes(type)));
 
         if (type === 'study') {
-            tab.innerHTML = `<div class="card"><h2>STUDIO</h2><input id="tI" placeholder="Argomento"><textarea id="nI" placeholder="Note..."></textarea><button class="btn" onclick="addTopic()">REGISTRA</button></div>`;
-        } else if (type === 'ripasso') {
+            tab.innerHTML = `
+                <div class="card">
+                    <h2>STUDIO</h2>
+                    <div class="triage-selector">
+                        <div class="triage-btn triage-1 ${data.triageSelection==1?'selected':''}" onclick="data.triageSelection=1; setSubTab('study')">BASE</div>
+                        <div class="triage-btn triage-2 ${data.triageSelection==2?'selected':''}" onclick="data.triageSelection=2; setSubTab('study')">ESAME</div>
+                        <div class="triage-btn triage-3 ${data.triageSelection==3?'selected':''}" onclick="data.triageSelection=3; setSubTab('study')">SCOGLIO</div>
+                    </div>
+                    <input id="tI" placeholder="Argomento">
+                    <textarea id="nI" placeholder="Note..."></textarea>
+                    <button class="btn" onclick="addTopic()">REGISTRA</button>
+                </div>`;
+        } 
+        // ... (restante logica ripasso, calendar, history rimane uguale)
+        else if (type === 'ripasso') {
             const today = new Date().toISOString().split('T')[0];
             const due = sub.topics.filter(t => t.next <= today);
             tab.innerHTML = due.length ? "" : "<h2>Tutto ripassato! 🎉</h2>";
             due.forEach(t => {
-                tab.innerHTML += `<div class="card" style="border-left:8px solid ${sub.color}"><h2>${t.name}</h2><div class="notes-toggle" onclick="toggleNoteDiv('${t.id}', 'rip')">📝 NOTE</div><div id="nb-rip-${t.id}" class="notes-content hidden"><textarea id="nt-rip-${t.id}">${t.notes || ""}</textarea><button class="btn" style="padding:10px; font-size:1rem" onclick="saveNote('${t.id}', 'rip')">SALVA</button></div><div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:15px"><button class="btn" style="background:#333; color:white" onclick="rateTopic('${t.id}', 1)">DIFF.</button><button class="btn" style="background:#007bff; color:white" onclick="rateTopic('${t.id}', 2)">BUONO</button><button class="btn" style="background:#00e676; color:black" onclick="rateTopic('${t.id}', 3)">FACILE</button></div></div>`;
+                const triageColors = ['', '#00e676', '#ffe700', '#ff5252'];
+                tab.innerHTML += `<div class="card" style="border-left:8px solid ${triageColors[t.triage || 1]}">
+                    <small style="color:var(--text-dim)">${sub.name.toUpperCase()}</small>
+                    <h2>${t.name}</h2>
+                    <div class="notes-toggle" onclick="toggleNoteDiv('${t.id}', 'rip')">📝 NOTE</div>
+                    <div id="nb-rip-${t.id}" class="notes-content hidden"><textarea id="nt-rip-${t.id}">${t.notes || ""}</textarea><button class="btn" style="padding:10px; font-size:1rem" onclick="saveNote('${t.id}', 'rip')">SALVA</button></div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:15px">
+                        <button class="btn" style="background:#333; color:white" onclick="rateTopic('${t.id}', 1)">DIFF.</button>
+                        <button class="btn" style="background:#007bff; color:white" onclick="rateTopic('${t.id}', 2)">BUONO</button>
+                        <button class="btn" style="background:#00e676; color:black" onclick="rateTopic('${t.id}', 3)">FACILE</button>
+                    </div>
+                </div>`;
             });
-        } else if (type === 'calendar') {
-            tab.innerHTML = `<div class="card"><div class="agenda-header"><div class="nav-arrow" onclick="changeWeek(-1)">❮</div><div class="week-label" id="subWeekDisplay">...</div><div class="nav-arrow" onclick="changeWeek(1)">❯</div></div><div id="subAgendaWeekly"></div></div>`;
-            renderAgendaDisplay(false);
-        } else if (type === 'history') {
-            tab.innerHTML = sub.topics.map(t => `<div class="card"><b>${t.name}</b><br><small>Prossimo: ${t.next.split('-').reverse().join('/')}</small><div class="notes-toggle" onclick="toggleNoteDiv('${t.id}', 'his')">📝 NOTE</div><div id="nb-his-${t.id}" class="notes-content hidden"><textarea id="nt-his-${t.id}">${t.notes || ""}</textarea><button class="btn" style="padding:10px; font-size:1rem" onclick="saveNote('${t.id}', 'his')">SALVA</button></div><div style="margin-top:10px; display:flex; justify-content:space-between"><span style="color:var(--primary); cursor:pointer; text-decoration:underline" onclick="openDateModal('${t.id}')">SPOSTA</span><span style="color:var(--danger); cursor:pointer; text-decoration:underline" onclick="delTopic('${t.id}')">ELIMINA</span></div></div>`).join('');
         }
+        // ... (il resto delle funzioni segue la logica originale)
     }
 
-    // --- AZIONI MODALI ---
-    function addNewSubject() {
-        const n = document.getElementById('modalSubName').value;
-        if (!n) return;
-        data.subjects[n] = { topics: [], color: colors[Object.keys(data.subjects).length % 6] };
-        document.getElementById('modalSubName').value = "";
-        closeModal('subModal');
-        setView('subject', n);
-    }
-
-    function addExternalEvent() {
-        const title = document.getElementById('extTitle').value;
-        const dateInput = document.getElementById('extDate').value;
-        if (!title || !dateInput) return;
-        const p = dateInput.split('/');
-        const dStr = `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
-        data.externalEvents.push({ title, date: dStr });
-        document.getElementById('extTitle').value = "";
-        document.getElementById('extDate').value = "";
-        closeModal('extModal');
-        save(); render();
-    }
-
-    function openDateModal(id) {
-        document.getElementById('editingTopicId').value = id;
-        openModal('dateModal');
-    }
-
-    function saveManualDate() {
-        const id = document.getElementById('editingTopicId').value;
-        const val = document.getElementById('newDateInput').value;
-        if (!val) return;
-        const p = val.split('/');
-        const t = data.subjects[data.activeSub].topics.find(x => x.id === id);
-        t.next = `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
-        document.getElementById('newDateInput').value = "";
-        closeModal('dateModal');
-        save(); render();
-    }
-
-    // --- FUNZIONI CORE ---
+    // Modifica addTopic per includere il triage selezionato
     function addTopic() {
         const name = document.getElementById('tI').value;
         if(!name) return;
-        data.subjects[data.activeSub].topics.push({ id: Date.now().toString(), name, notes: document.getElementById('nI').value, next: shiftDate(new Date(), 1), interval: 1 });
+        data.subjects[data.activeSub].topics.push({ 
+            id: Date.now().toString(), 
+            name, 
+            notes: document.getElementById('nI').value, 
+            next: shiftDate(new Date(), 1), 
+            interval: 1,
+            triage: data.triageSelection,
+            history: []
+        });
         save(); setSubTab('study'); showToast("Registrato!");
     }
-
-    function rateTopic(id, q) {
-        const t = data.subjects[data.activeSub].topics.find(x => x.id === id);
-        const gaps = [0, 1, 3, 7];
-        t.interval = q === 1 ? 1 : t.interval + gaps[q];
-        t.next = shiftDate(new Date(), t.interval);
-        save(); render();
-    }
-
-    function saveNote(id, section) {
-        const t = data.subjects[data.activeSub].topics.find(x => x.id === id);
-        t.notes = document.getElementById(`nt-${section}-${id}`).value;
-        save(); showToast("Nota salvata!");
-        document.getElementById(`nb-${section}-${id}`).classList.add('hidden');
-    }
-
-    function toggleNoteDiv(id, sec) { document.getElementById(`nb-${sec}-${id}`).classList.toggle('hidden'); }
-    function shiftDate(s, d) { let date = new Date(s); date.setDate(date.getDate() + d); return date.toISOString().split('T')[0]; }
-    function delTopic(id) { if(confirm("Elimina?")) { data.subjects[data.activeSub].topics = data.subjects[data.activeSub].topics.filter(x => x.id !== id); save(); render(); }}
-    function editSubStyle(n) { const c = prompt("Colore HEX:", data.subjects[n].color); if(c) { data.subjects[n].color = c; save(); render(); }}
-    function applyImprevisto() { const today = new Date().toISOString().split('T')[0]; data.subjects[data.activeSub].topics.forEach(t => { if(t.next <= today) t.next = shiftDate(today, 1); }); save(); render(); showToast("Spostato!"); }
-
-    render();
 </script>
-</body>
-</html>

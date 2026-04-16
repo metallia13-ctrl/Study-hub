@@ -3,73 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Study Hub Dark V7.3</title>
-    
+    <title>Study Hub Pro V7.5</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
     <link rel="apple-touch-icon" href="icon.png">
     <link rel="icon" type="image/png" href="icon.png">
-    <meta name="theme-color" content="#1a1a1a">
-
+    
     <style>
         :root { 
-            --bg: #121212; 
-            --card-bg: #1e1e1e; 
-            --primary: #bb86fc; 
-            --accent: #03dac6; 
-            --text: #e0e0e0; 
-            --text-dim: #a0a0a0;
-            --danger: #cf6679;
-            --success: #4caf50;
-            --border: #333;
+            --bg: #070b0e; 
+            --card-bg: #0e161d; 
+            --primary: #4deeea; 
+            --text: #e0f7fa; 
+            --text-dim: #80deea;
+            --danger: #ff5252;
+            --success: #00e676;
+            --border: #1a262f;
         }
         
-        body { font-family: 'Segoe UI', Roboto, sans-serif; background: var(--bg); margin: 0; padding: 0; color: var(--text); }
+        body { font-family: 'Roboto', sans-serif; background: var(--bg); margin: 0; padding: 0; color: var(--text); font-size: 18px; }
         
-        .sidebar { background: #1a1a1a; border-bottom: 1px solid var(--border); padding: 12px; display: flex; gap: 10px; overflow-x: auto; position: sticky; top: 0; z-index: 1000; align-items: center; }
+        #toast { visibility: hidden; min-width: 250px; background-color: var(--primary); color: #000; text-align: center; border-radius: 8px; padding: 16px; position: fixed; z-index: 2000; left: 50%; bottom: 30px; transform: translateX(-50%); font-weight: 700; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
+        .sidebar { background: #040608; border-bottom: 2px solid var(--border); padding: 15px; display: flex; gap: 12px; overflow-x: auto; position: sticky; top: 0; z-index: 1000; align-items: center; }
+        .subject-tab { padding: 10px 22px; border-radius: 25px; cursor: pointer; white-space: nowrap; font-weight: 700; font-size: 1rem; border: 2px solid transparent; background: #16212a; color: var(--text-dim); transition: 0.3s; }
+        .subject-tab.active { color: #000; background: var(--primary); border-color: #fff; }
+        .global-tab { background: #1e2a35; border: 1px dashed var(--primary); }
         
-        .subject-tab { padding: 8px 16px; border-radius: 20px; cursor: pointer; white-space: nowrap; font-weight: bold; font-size: 0.85rem; border: 1px solid transparent; display: flex; align-items: center; gap: 6px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); color: var(--text-dim); background: #2a2a2a; }
-        .subject-tab.active { color: white; border-color: var(--primary); box-shadow: 0 0 10px rgba(187, 134, 252, 0.2); }
+        .container { padding: 20px; max-width: 950px; margin: auto; }
+        .card { background: var(--card-bg); border-radius: 20px; padding: 25px; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.7); margin-bottom: 25px; }
         
-        .add-subject-btn { background: var(--primary); color: #000; border-radius: 50%; width: 32px; height: 32px; border: none; cursor: pointer; font-weight: bold; flex-shrink: 0; }
-        .lang-select { position: absolute; right: 12px; background: #2a2a2a; color: white; border: 1px solid var(--border); border-radius: 6px; font-size: 0.75rem; padding: 5px; cursor: pointer; }
+        .inner-nav { display: flex; justify-content: space-around; margin-bottom: 25px; border-bottom: 2px solid var(--border); overflow-x: auto; }
+        .inner-nav-item { padding: 15px; cursor: pointer; font-size: 0.85rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.5px; white-space: nowrap; }
+        .inner-nav-item.active { color: var(--primary); border-bottom: 4px solid var(--primary); }
         
-        .container { padding: 16px; max-width: 850px; margin: auto; }
-        .card { background: var(--card-bg); border-radius: 16px; padding: 20px; border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.5); margin-bottom: 20px; }
+        .btn { border: none; padding: 18px; border-radius: 12px; cursor: pointer; font-weight: 700; color: #000; width: 100%; margin-top: 10px; font-size: 1.1rem; background: var(--primary); text-transform: uppercase; }
+        .btn-danger { background: var(--danger); color: #fff; }
         
-        .inner-nav { display: flex; justify-content: space-around; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
-        .inner-nav-item { padding: 12px; cursor: pointer; font-size: 0.8rem; font-weight: bold; color: var(--text-dim); transition: 0.3s; text-transform: uppercase; letter-spacing: 1px; }
-        .inner-nav-item.active { color: var(--primary); border-bottom: 3px solid var(--primary); }
+        /* CALENDARIO */
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; background: var(--border); border-radius: 12px; overflow: hidden; }
+        .calendar-day { background: var(--card-bg); min-height: 100px; padding: 8px; position: relative; }
+        .calendar-header { background: #040608; color: var(--primary); padding: 10px; font-weight: 700; font-size: 0.75rem; text-align: center; }
+        .day-number { font-weight: 700; color: var(--text-dim); opacity: 0.5; }
+        .today { background: #16212a; border: 1px solid var(--primary); }
         
-        .hidden { display: none; }
+        .topic-dot { height: 6px; border-radius: 3px; margin-top: 3px; width: 100%; }
+
+        /* SETTIMANALE */
+        .weekly-row { border-left: 5px solid var(--primary); background: #0e161d; padding: 18px; margin-bottom: 12px; border-radius: 0 15px 15px 0; border: 1px solid var(--border); border-left-width: 5px; }
+        .weekly-date { font-weight: 700; color: var(--primary); margin-bottom: 10px; font-size: 1.2rem; }
+        .weekly-item { font-size: 1rem; margin-bottom: 5px; font-weight: 400; display: flex; align-items: center; gap: 8px; }
+
+        input, textarea { width: 100%; padding: 16px; margin-bottom: 15px; border-radius: 12px; border: 2px solid var(--border); background: #05080a; color: #fff; font-size: 1.1rem; font-family: 'Roboto'; }
+        .notes-content { background: #040608; padding: 15px; border-radius: 12px; border: 1px solid var(--primary); margin: 15px 0; }
         
-        .btn { border: none; padding: 14px; border-radius: 10px; cursor: pointer; font-weight: bold; color: white; width: 100%; margin-top: 8px; transition: 0.2s; text-decoration: none; display: inline-block; text-align: center; box-sizing: border-box; }
-        .btn:hover { filter: brightness(1.2); transform: translateY(-1px); }
-        
-        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-        .calendar-header { background: #1a1a1a; text-align: center; padding: 8px; font-size: 0.75rem; color: var(--primary); font-weight: bold; }
-        .calendar-day { background: var(--card-bg); min-height: 100px; padding: 6px; font-size: 0.7rem; position: relative; }
-        .calendar-day.today { background: #2c2c2c; box-shadow: inset 0 0 5px var(--primary); }
-        .day-number { font-weight: bold; color: var(--text-dim); margin-bottom: 4px; display: block; }
-        .topic-tag { color: white; padding: 3px 5px; border-radius: 4px; margin-bottom: 3px; font-size: 0.6rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: block; border-left: 3px solid rgba(0,0,0,0.3); }
-        
-        .valutazione-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 15px; }
-        .btn-val { font-size: 0.7rem; padding: 12px 4px; border-radius: 8px; border: none; color: white; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        
-        input, textarea { width: 100%; padding: 14px; margin-bottom: 12px; border-radius: 10px; border: 1px solid var(--border); background: #2a2a2a; color: white; box-sizing: border-box; font-size: 1rem; }
-        input:focus, textarea:focus { border-color: var(--primary); outline: none; }
-        
-        .notes-toggle { font-size: 0.8rem; color: var(--accent); cursor: pointer; font-weight: bold; margin-top: 10px; display: inline-block; padding: 4px 8px; border-radius: 6px; background: rgba(3, 218, 198, 0.1); }
-        .notes-content { margin-top: 10px; background: #252525; padding: 12px; border-radius: 10px; border: 1px solid var(--border); }
-        .notes-textarea { font-size: 0.9rem; min-height: 90px; margin-bottom: 8px; background: #1a1a1a; border-color: #444; }
-        
-        .history-item { border-bottom: 1px solid var(--border); padding: 15px 0; }
-        .history-controls { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
-        .edit-sub-btn { cursor: pointer; font-size: 0.8rem; margin-left: 8px; color: var(--text-dim); }
-        .link-badge { display: inline-block; background: rgba(3, 218, 198, 0.1); padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; text-decoration: none; color: var(--accent); margin-top: 8px; font-weight: bold; }
+        .action-link { font-weight: 700; font-size: 0.9rem; cursor: pointer; text-decoration: underline; text-transform: uppercase; }
     </style>
 </head>
 <body>
 
+<div id="toast"></div>
+
 <div class="sidebar" id="subjectBar">
+    <div class="subject-tab global-tab" id="globalBtn" onclick="activateGlobal()">GLOBALE 🌍</div>
     <button class="add-subject-btn" onclick="promptNewSubject()">+</button>
     <select class="lang-select" onchange="changeLang(this.value)" id="langPicker">
         <option value="it">IT 🇮🇹</option>
@@ -80,340 +78,229 @@
 <div id="appContent" class="container"></div>
 
 <div id="subjectTemplate" class="hidden">
-    <button class="btn" style="background:var(--danger); box-shadow: 0 4px 14px rgba(207, 102, 121, 0.3);" id="btnImprevisto" onclick="applyImprevisto()">⚠️</button>
-    
+    <button class="btn btn-danger" id="btnImprevisto" onclick="applyImprevisto()"></button>
     <div class="inner-nav">
-        <div class="inner-nav-item active" id="navStudy" onclick="switchSubTab(this, 'study')"></div>
-        <div class="inner-nav-item" id="navRipasso" onclick="switchSubTab(this, 'ripasso')"></div>
-        <div class="inner-nav-item" id="navCal" onclick="switchSubTab(this, 'calendar')"></div>
-        <div class="inner-nav-item" id="navData" onclick="switchSubTab(this, 'history')"></div>
+        <div class="inner-nav-item active" onclick="switchSubTab(this, 'study')">STUDIO</div>
+        <div class="inner-nav-item" onclick="switchSubTab(this, 'ripasso')">RIPASSO</div>
+        <div class="inner-nav-item" onclick="switchSubTab(this, 'calendar')">CALENDARIO</div>
+        <div class="inner-nav-item" onclick="switchSubTab(this, 'history')">DATI</div>
     </div>
-
-    <div class="sub-tab-content" id="tab-study">
-        <div class="card">
-            <h3 id="newTopicTitle" style="color: var(--primary); margin-top: 0;"></h3>
-            <input type="text" id="topicInput">
-            <input type="text" id="linkInput" placeholder="URL Google Drive">
-            <textarea id="noteInput"></textarea>
-            <button class="btn" id="regBtn" onclick="addTopic()"></button>
-        </div>
-    </div>
-
-    <div class="sub-tab-content hidden" id="tab-ripasso">
-        <div class="card">
-            <h3 id="dueTodayTitle" style="color: var(--accent); margin-top: 0;"></h3>
-            <div id="ripassoList"></div>
-        </div>
-    </div>
-
-    <div class="sub-tab-content hidden" id="tab-calendar">
-        <div class="card" style="padding: 10px; overflow-x: auto;">
-            <h3 id="calendarMonthTitle" style="text-align:center; margin-bottom:15px; color: var(--primary);"></h3>
-            <div class="calendar-grid" id="calendarGrid"></div>
-        </div>
-    </div>
-
-    <div class="sub-tab-content hidden" id="tab-history">
-        <div class="card">
-            <h3 id="historyTitle" style="color: var(--primary); margin-top: 0;"></h3>
-            <div id="historyList"></div>
-        </div>
-        <div class="card">
-            <h3 id="backupTitle" style="color: var(--text-dim); font-size: 1rem;"></h3>
-            <button class="btn" style="background:#444" id="btnExport" onclick="exportData()"></button>
-            <button class="btn" style="background:var(--success); margin-top:10px;" id="btnImport" onclick="document.getElementById('importFile').click()"></button>
-            <input type="file" id="importFile" class="hidden" accept=".json" onchange="importData(event)">
-        </div>
-    </div>
+    <div id="tabContent"></div>
 </div>
 
 <script>
-    let data = JSON.parse(localStorage.getItem('multiSubjectDataV6')) || { subjects: {}, activeSubject: null, lang: 'it', activeTab: 'study' };
-    const defaultColors = ['#bb86fc', '#03dac6', '#ffb74d', '#4fc3f7', '#a5d6a7', '#ef9a9a'];
+    let data = JSON.parse(localStorage.getItem('multiSubjectDataV6')) || { subjects: {}, activeSubject: null, lang: 'it', isGlobal: false };
+    const defaultColors = ['#4deeea', '#74ee15', '#ffe700', '#f000ff', '#001eff', '#00e676'];
 
-    const translations = {
-        it: {
-            welcomeTitle: "Benvenuta!", welcomeDesc: "Crea una materia per iniziare.",
-            imprevisto: "⚠️ GESTISCI IMPREVISTO (+1g)", study: "STUDIO", ripasso: "RIPASSO", calendar: "CALENDARIO", data: "DATI",
-            newTopic: "Nuovo Argomento", placeholder: "Nome argomento", register: "Registra Studio",
-            dueToday: "Da Ripetere Oggi", done: "Nessun ripasso oggi!", rifai: "Rifai", diff: "Diff.", buono: "Buono", facile: "Facile",
-            history: "Archivio Argomenti", backup: "💾 Backup", export: "Esporta JSON", import: "Importa JSON",
-            next: "Prossimo: ", del: "Elimina", editDate: "Sposta Data", promptSub: "Materia:",
-            months: ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"],
-            days: ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"],
-            openLink: "📂 Documenti", promptDate: "Data (GG/MM/AAAA):", notesLabel: "📝 Note", saveNotes: "Salva Note", notePlaceholder: "Appunti critici..."
-        },
-        en: {
-            welcomeTitle: "Welcome!", welcomeDesc: "Add a subject to start.",
-            imprevisto: "⚠️ MANAGE DELAY (+1d)", study: "STUDY", ripasso: "REVIEW", calendar: "CALENDAR", data: "DATA",
-            newTopic: "New Topic", placeholder: "Topic name", register: "Register Study",
-            dueToday: "Review Today", done: "All caught up!", rifai: "Again", diff: "Hard", buono: "Good", facile: "Easy",
-            history: "Topic Archive", backup: "💾 Backup", export: "Export JSON", import: "Import JSON",
-            next: "Next: ", del: "Delete", editDate: "Move Date", promptSub: "Subject:",
-            months: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
-            days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-            openLink: "📂 Docs", promptDate: "Date (DD/MM/YYYY):", notesLabel: "📝 Notes", saveNotes: "Save Notes", notePlaceholder: "Critical notes..."
-        }
-    };
-
-    function formatDisplayDate(dateStr) {
-        if (!dateStr) return "";
-        const parts = dateStr.split('-');
-        return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    }
-
-    function formatSaveDate(displayDate) {
-        const parts = displayDate.split('/');
-        if (parts.length !== 3) return null;
-        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    function showToast(msg) {
+        const x = document.getElementById("toast");
+        x.innerHTML = msg; x.className = "show";
+        setTimeout(() => { x.className = x.className.replace("show", ""); }, 3000);
     }
 
     function save() { localStorage.setItem('multiSubjectDataV6', JSON.stringify(data)); }
-    function changeLang(val) { data.lang = val; save(); render(); }
+
+    function getIntensity(interval) {
+        // Ritorna opacità basata sulla difficoltà (intervallo Anki)
+        if (interval <= 1) return 1.0; // Difficile/Nuovo
+        if (interval <= 3) return 0.7; // Buono
+        if (interval <= 7) return 0.4; // Facile
+        return 0.2; // Molto facile
+    }
+
+    function activateGlobal() {
+        data.isGlobal = true; data.activeSubject = null;
+        save(); render();
+    }
 
     function render() {
-        const lang = data.lang || 'it';
-        document.getElementById('langPicker').value = lang;
         const bar = document.getElementById('subjectBar');
-        bar.querySelectorAll('.subject-tab').forEach(e => e.remove());
-        
+        bar.querySelectorAll('.subject-tab:not(.global-tab)').forEach(e => e.remove());
+        document.getElementById('globalBtn').className = `subject-tab global-tab ${data.isGlobal ? 'active' : ''}`;
+
         Object.keys(data.subjects).forEach(sub => {
-            const sData = data.subjects[sub];
             const btn = document.createElement('div');
-            btn.className = `subject-tab ${data.activeSubject === sub ? 'active' : ''}`;
-            if(data.activeSubject === sub) btn.style.backgroundColor = sData.color + '33';
-            btn.innerHTML = `${sub} <span class="edit-sub-btn" onclick="editSubject('${sub}')">⚙️</span>`;
-            btn.onclick = (e) => { if(e.target.className !== 'edit-sub-btn') { data.activeSubject = sub; save(); render(); }};
+            btn.className = `subject-tab ${(!data.isGlobal && data.activeSubject === sub) ? 'active' : ''}`;
+            btn.innerHTML = `${sub} <span onclick="editSubject('${sub}')">⚙️</span>`;
+            btn.onclick = (e) => { if(!e.target.innerHTML.includes('⚙️')) { data.isGlobal = false; data.activeSubject = sub; save(); render(); }};
             bar.insertBefore(btn, document.getElementById('langPicker'));
         });
 
         const content = document.getElementById('appContent');
-        if (!data.activeSubject) {
-            content.innerHTML = `<div class="card" style="text-align:center;"><h2>${translations[lang].welcomeTitle}</h2><p>${translations[lang].welcomeDesc}</p></div>`;
-            return;
+        if (data.isGlobal) {
+            renderGlobalView(content);
+        } else if (data.activeSubject) {
+            content.innerHTML = document.getElementById('subjectTemplate').innerHTML;
+            switchSubTab(null, 'study');
+        } else {
+            content.innerHTML = `<div class="card"><h2>Benvenuta! Seleziona o aggiungi una materia.</h2></div>`;
         }
-        content.innerHTML = document.getElementById('subjectTemplate').innerHTML;
-        updateUI();
     }
 
-    function updateUI() {
-        const lang = data.lang || 'it';
-        const sub = data.subjects[data.activeSubject];
-        document.getElementById('btnImprevisto').innerText = translations[lang].imprevisto;
-        document.getElementById('navStudy').innerText = translations[lang].study;
-        document.getElementById('navRipasso').innerText = translations[lang].ripasso;
-        document.getElementById('navCal').innerText = translations[lang].calendar;
-        document.getElementById('navData').innerText = translations[lang].data;
-        document.getElementById('newTopicTitle').innerText = translations[lang].newTopic;
-        document.getElementById('topicInput').placeholder = translations[lang].placeholder;
-        document.getElementById('noteInput').placeholder = translations[lang].notePlaceholder;
-        document.getElementById('regBtn').innerText = translations[lang].register;
-        document.getElementById('regBtn').style.backgroundColor = sub.color;
-        document.getElementById('dueTodayTitle').innerText = translations[lang].dueToday;
-        document.getElementById('historyTitle').innerText = translations[lang].history;
-        document.getElementById('backupTitle').innerText = translations[lang].backup;
-        document.getElementById('btnExport').innerText = translations[lang].export;
-        document.getElementById('btnImport').innerText = translations[lang].import;
-
-        switchSubTab(null, data.activeTab || 'study');
-        renderRipasso(); renderHistory(); renderGridCalendar();
+    function renderGlobalView(container) {
+        container.innerHTML = `
+            <div class="card">
+                <h2 style="color:var(--primary); text-align:center">CALENDARIO GLOBALE</h2>
+                <div class="calendar-grid" id="globalGrid"></div>
+                <div class="weekly-view" style="margin-top:30px">
+                    <h3 style="color:var(--primary); border-bottom:2px solid var(--primary); padding-bottom:10px">PIANO SETTIMANALE TOTALE</h3>
+                    <div id="globalWeekly"></div>
+                </div>
+            </div>`;
+        renderFullCalendar('globalGrid', 'globalWeekly', true);
     }
 
-    function toggleNotes(topicId, section) {
-        const el = document.getElementById(`notes-box-${section}-${topicId}`);
-        el.classList.toggle('hidden');
-    }
-
-    function updateNote(topicId, section) {
-        const sub = data.subjects[data.activeSubject];
-        const topic = sub.topics.find(x => x.id === topicId);
-        const newNote = document.getElementById(`textarea-note-${section}-${topicId}`).value;
-        topic.notes = newNote;
-        save();
-        alert(data.lang === 'it' ? "Salvate!" : "Saved!");
-    }
-
-    function renderRipasso() {
-        const lang = data.lang || 'it';
-        const sub = data.subjects[data.activeSubject];
-        const today = new Date().toISOString().split('T')[0];
-        const list = document.getElementById('ripassoList');
-        const due = sub.topics.filter(t => t.next <= today);
-        list.innerHTML = due.length ? "" : `<p style='text-align:center; color:grey; padding:20px;'>${translations[lang].done}</p>`;
+    function renderFullCalendar(gridId, weeklyId, isGlobal) {
+        const grid = document.getElementById(gridId);
+        const weekly = document.getElementById(weeklyId);
+        const now = new Date(); const year = now.getFullYear(); const month = now.getMonth();
+        const todayStr = now.toISOString().split('T')[0];
         
-        due.forEach(topic => {
-            const linkHtml = topic.link ? `<a href="${topic.link}" target="_blank" class="link-badge">${translations[lang].openLink}</a>` : '';
-            list.innerHTML += `
-                <div class="card" style="border-left:5px solid ${sub.color};">
-                    <div style="font-weight:bold; font-size:1.1rem;">${topic.name}</div> ${linkHtml}
-                    <div class="notes-toggle" onclick="toggleNotes('${topic.id}', 'rip')">${translations[lang].notesLabel}</div>
-                    <div id="notes-box-rip-${topic.id}" class="notes-content hidden">
-                        <textarea id="textarea-note-rip-${topic.id}" class="notes-textarea">${topic.notes || ""}</textarea>
-                        <button class="btn" style="background:var(--primary); color:#000; padding:8px;" onclick="updateNote('${topic.id}', 'rip')">${translations[lang].saveNotes}</button>
-                    </div>
-                    <div class="valutazione-grid">
-                        <button class="btn-val" style="background:#555" onclick="rateTopic('${topic.id}', 0)">${translations[lang].rifai}</button>
-                        <button class="btn-val" style="background:var(--danger)" onclick="rateTopic('${topic.id}', 1)">${translations[lang].diff}</button>
-                        <button class="btn-val" style="background:var(--accent); color:#000" onclick="rateTopic('${topic.id}', 2)">${translations[lang].buono}</button>
-                        <button class="btn-val" style="background:var(--success)" onclick="rateTopic('${topic.id}', 3)">${translations[lang].facile}</button>
-                    </div>
-                </div>`;
-        });
-    }
+        grid.innerHTML = ""; weekly.innerHTML = "";
+        ["LUN", "MAR", "MER", "GIO", "VEN", "SAB", "DOM"].forEach(d => grid.innerHTML += `<div class="calendar-header">${d}</div>`);
 
-    function renderHistory() {
-        const lang = data.lang || 'it';
-        const sub = data.subjects[data.activeSubject];
-        const list = document.getElementById('historyList');
-        list.innerHTML = "";
-        
-        sub.topics.forEach(t => {
-            list.innerHTML += `
-                <div class="history-item">
-                    <div style="font-weight:bold;">${t.name}</div>
-                    <div style="font-size:0.75rem; color:var(--text-dim); margin-top:4px;">${translations[lang].next}${formatDisplayDate(t.next)}</div>
-                    <div class="notes-toggle" onclick="toggleNotes('${t.id}', 'hist')">${translations[lang].notesLabel}</div>
-                    <div id="notes-box-hist-${t.id}" class="notes-content hidden">
-                        <textarea id="textarea-note-hist-${t.id}" class="notes-textarea">${t.notes || ""}</textarea>
-                        <button class="btn" style="background:var(--primary); color:#000; padding:8px;" onclick="updateNote('${t.id}', 'hist')">${translations[lang].saveNotes}</button>
-                    </div>
-                    <div class="history-controls">
-                        <span style="color:var(--accent); cursor:pointer; font-size:0.75rem;" onclick="manualDateEdit('${t.id}')">${translations[lang].editDate}</span>
-                        <span style="color:var(--danger); cursor:pointer; font-size:0.75rem;" onclick="deleteTopic('${t.id}')">${translations[lang].del}</span>
-                    </div>
-                </div>`;
-        });
-    }
-
-    function renderGridCalendar() {
-        const lang = data.lang || 'it';
-        const grid = document.getElementById('calendarGrid');
-        if(!grid) return;
-        const now = new Date();
-        const year = now.getFullYear(); const month = now.getMonth();
-        document.getElementById('calendarMonthTitle').innerText = `${translations[lang].months[month]} ${year}`;
-        grid.innerHTML = "";
-        translations[lang].days.forEach(d => grid.innerHTML += `<div class="calendar-header">${d}</div>`);
         const firstDay = new Date(year, month, 1).getDay();
         const startOffset = firstDay === 0 ? 6 : firstDay - 1;
         const daysInMonth = new Date(year, month + 1, 0).getDate();
+
         for (let i = 0; i < startOffset + daysInMonth; i++) {
             const dayNum = i - startOffset + 1;
             const dayDiv = document.createElement('div');
             dayDiv.className = 'calendar-day';
             if (dayNum > 0) {
                 const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
-                if(dateStr === now.toISOString().split('T')[0]) dayDiv.classList.add('today');
+                if(dateStr === todayStr) dayDiv.classList.add('today');
                 dayDiv.innerHTML = `<span class="day-number">${dayNum}</span>`;
-                Object.keys(data.subjects).forEach(sName => {
-                    const s = data.subjects[sName];
-                    s.topics.forEach(t => { if(t.next === dateStr) dayDiv.innerHTML += `<span class="topic-tag" style="background-color:${s.color}">${t.name}</span>`; });
+                
+                let dayTopics = [];
+                const subjectsToScan = isGlobal ? Object.keys(data.subjects) : [data.activeSubject];
+
+                subjectsToScan.forEach(sName => {
+                    data.subjects[sName].topics.forEach(t => {
+                        if(t.next === dateStr) {
+                            dayDiv.innerHTML += `<div class="topic-dot" style="background:${data.subjects[sName].color}; opacity:${getIntensity(t.interval)}"></div>`;
+                            dayTopics.push({ name: t.name, sub: sName, color: data.subjects[sName].color, interval: t.interval });
+                        }
+                    });
                 });
+
+                const diff = (new Date(dateStr) - new Date(todayStr)) / (1000 * 3600 * 24);
+                if (diff >= 0 && diff < 7 && dayTopics.length > 0) {
+                    let items = dayTopics.map(dt => `<div class="weekly-item" style="color:${dt.color}; opacity:${getIntensity(dt.interval)}"><b>• ${dt.name}</b> ${isGlobal ? '('+dt.sub+')' : ''}</div>`).join('');
+                    const formattedDate = dateStr.split('-').reverse().join('/');
+                    weekly.innerHTML += `<div class="weekly-row"><div class="weekly-date">${formattedDate}</div>${items}</div>`;
+                }
             }
             grid.appendChild(dayDiv);
         }
     }
 
     function switchSubTab(el, type) {
-        data.activeTab = type;
-        document.querySelectorAll('.inner-nav-item').forEach(i => i.classList.remove('active'));
-        const idMap = {study: 'navStudy', ripasso: 'navRipasso', calendar: 'navCal', history: 'navData'};
-        if(document.getElementById(idMap[type])) document.getElementById(idMap[type]).classList.add('active');
-        document.querySelectorAll('.sub-tab-content').forEach(c => c.classList.add('hidden'));
-        if(document.getElementById(`tab-${type}`)) document.getElementById(`tab-${type}`).classList.remove('hidden');
-        if(type === 'calendar') renderGridCalendar();
+        const container = document.getElementById('tabContent');
+        const sub = data.subjects[data.activeSubject];
+        const lang = 'it';
+        
+        if (type === 'study') {
+            container.innerHTML = `
+                <div class="card">
+                    <h2 style="color:var(--primary)">NUOVO ARGOMENTO</h2>
+                    <input type="text" id="tIn" placeholder="Nome argomento">
+                    <input type="text" id="lIn" placeholder="Link Google Drive">
+                    <textarea id="nIn" placeholder="Note per l'ultima ripetizione..."></textarea>
+                    <button class="btn" onclick="addTopic()">REGISTRA STUDIO</button>
+                </div>`;
+        } else if (type === 'ripasso') {
+            const today = new Date().toISOString().split('T')[0];
+            const due = sub.topics.filter(t => t.next <= today);
+            container.innerHTML = due.length ? "" : `<div class="card"><h2>TUTTO RIPASSATO!</h2></div>`;
+            due.forEach(t => {
+                container.innerHTML += `
+                    <div class="card" style="border-left:8px solid ${sub.color}">
+                        <h2 style="margin:0">${t.name}</h2>
+                        <div class="action-link" style="color:var(--primary); margin:10px 0" onclick="this.nextElementSibling.classList.toggle('hidden')">📝 NOTE</div>
+                        <div class="notes-content hidden">
+                            <textarea id="nt-${t.id}">${t.notes || ""}</textarea>
+                            <button class="btn" style="padding:10px" onclick="updateNote('${t.id}')">SALVA</button>
+                        </div>
+                        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:15px">
+                            <button class="btn" style="background:#333; color:#fff" onclick="rateTopic('${t.id}', 0)">RIFAI</button>
+                            <button class="btn btn-danger" onclick="rateTopic('${t.id}', 1)">DIFF.</button>
+                            <button class="btn" style="background:#007bff; color:#fff" onclick="rateTopic('${t.id}', 2)">BUONO</button>
+                            <button class="btn" style="background:var(--success); color:#000" onclick="rateTopic('${t.id}', 3)">FACILE</button>
+                        </div>
+                    </div>`;
+            });
+        } else if (type === 'calendar') {
+            container.innerHTML = `<div class="card"><div class="calendar-grid" id="subGrid"></div><div id="subWeekly" style="margin-top:20px"></div></div>`;
+            renderFullCalendar('subGrid', 'subWeekly', false);
+        } else if (type === 'history') {
+            container.innerHTML = sub.topics.map(t => `
+                <div class="card">
+                    <h3 style="margin:0">${t.name}</h3>
+                    <p style="color:var(--text-dim)">Prossimo: <b>${t.next.split('-').reverse().join('/')}</b></p>
+                    <div class="action-link" style="color:var(--primary)" onclick="this.nextElementSibling.classList.toggle('hidden')">📝 NOTE</div>
+                    <div class="notes-content hidden">
+                        <textarea id="nth-${t.id}">${t.notes || ""}</textarea>
+                        <button class="btn" style="padding:10px" onclick="updateNote('${t.id}', true)">SALVA</button>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-top:15px">
+                        <span class="action-link" style="color:var(--primary)" onclick="manualDateEdit('${t.id}')">SPOSTA DATA</span>
+                        <span class="action-link" style="color:var(--danger)" onclick="deleteTopic('${t.id}')">ELIMINA</span>
+                    </div>
+                </div>`).join('') || "Vuoto";
+            container.innerHTML += `<div class="card"><button class="btn" style="background:#222; color:#fff" onclick="exportData()">ESPORTA JSON</button></div>`;
+        }
+
+        if(el) {
+            document.querySelectorAll('.inner-nav-item').forEach(i => i.classList.remove('active'));
+            el.classList.add('active');
+        }
     }
 
     function addTopic() {
-        const val = document.getElementById('topicInput').value;
-        const link = document.getElementById('linkInput').value;
-        const notes = document.getElementById('noteInput').value;
-        if (!val) return;
-        data.subjects[data.activeSubject].topics.push({ 
-            id: Date.now().toString(), name: val, link: link, notes: notes,
-            next: shiftDate(new Date().toISOString().split('T')[0], 1), interval: 1 
+        const name = document.getElementById('tIn').value;
+        if (!name) return;
+        data.subjects[data.activeSubject].topics.push({
+            id: Date.now().toString(), name, link: document.getElementById('lIn').value,
+            notes: document.getElementById('nIn').value, next: shiftDate(new Date().toISOString().split('T')[0], 1), interval: 1
         });
-        save(); render();
+        save(); render(); showToast("Argomento Registrato!");
     }
 
     function rateTopic(id, q) {
-        const sub = data.subjects[data.activeSubject];
-        const t = sub.topics.find(x => x.id === id);
-        if (q === 0) { t.interval = 1; t.next = new Date().toISOString().split('T')[0]; } 
-        else if (q === 1) { t.interval = 1; t.next = shiftDate(new Date().toISOString().split('T')[0], 1); } 
-        else if (q === 2) { t.interval = (t.interval < 3) ? 3 : t.interval + 3; t.next = shiftDate(new Date().toISOString().split('T')[0], t.interval); } 
-        else if (q === 3) { t.interval = (t.interval < 7) ? 7 : t.interval + 7; t.next = shiftDate(new Date().toISOString().split('T')[0], t.interval); }
-        save(); render();
+        const sub = data.subjects[data.activeSubject]; const t = sub.topics.find(x => x.id === id);
+        const today = new Date().toISOString().split('T')[0];
+        if (q === 0) { t.interval = 1; t.next = today; }
+        else if (q === 1) { t.interval = 1; t.next = shiftDate(today, 1); }
+        else if (q === 2) { t.interval = (t.interval < 3) ? 3 : t.interval + 3; t.next = shiftDate(today, t.interval); }
+        else if (q === 3) { t.interval = (t.interval < 7) ? 7 : t.interval + 7; t.next = shiftDate(today, t.interval); }
+        save(); render(); showToast("Ripasso completato!");
+    }
+
+    function updateNote(id, isHistory = false) {
+        const t = data.subjects[data.activeSubject].topics.find(x => x.id === id);
+        t.notes = document.getElementById(isHistory ? `nth-${id}` : `nt-${id}`).value;
+        save(); showToast("Nota Salvata!");
     }
 
     function promptNewSubject() {
-        const name = prompt(translations[data.lang].promptSub);
-        if (name && !data.subjects[name]) {
-            const color = defaultColors[Object.keys(data.subjects).length % defaultColors.length];
-            data.subjects[name] = { topics: [], color: color };
-            data.activeSubject = name; save(); render();
-        }
+        const n = prompt("Nome Materia:");
+        if(n) { data.subjects[n] = { topics: [], color: defaultColors[Object.keys(data.subjects).length % defaultColors.length] }; data.activeSubject = n; data.isGlobal = false; save(); render(); }
     }
 
+    function shiftDate(s, d) { let date = new Date(s); date.setDate(date.getDate() + d); return date.toISOString().split('T')[0]; }
     function manualDateEdit(id) {
-        const lang = data.lang || 'it';
-        const sub = data.subjects[data.activeSubject];
-        const t = sub.topics.find(x => x.id === id);
-        const newDateDisplay = prompt(translations[lang].promptDate, formatDisplayDate(t.next));
-        if (newDateDisplay) {
-            const savedFormat = formatSaveDate(newDateDisplay);
-            if (savedFormat && !isNaN(new Date(savedFormat).getTime())) {
-                t.next = savedFormat; save(); render();
-            } else { alert("Formato Errato!"); }
-        }
+        const t = data.subjects[data.activeSubject].topics.find(x => x.id === id);
+        const n = prompt("Nuova Data (GG/MM/AAAA):", t.next.split('-').reverse().join('/'));
+        if(n) { const p = n.split('/'); t.next = `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`; save(); render(); }
     }
-
-    function shiftDate(dateStr, days) {
-        let d = new Date(dateStr); d.setDate(d.getDate() + days);
-        return d.toISOString().split('T')[0];
+    function deleteTopic(id) { if(confirm("Elimina?")) { data.subjects[data.activeSubject].topics = data.subjects[data.activeSubject].topics.filter(x => x.id !== id); save(); render(); }}
+    function exportData() { const b = new Blob([JSON.stringify(data)], {type:"application/json"}); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download="backup.json"; a.click(); }
+    function applyImprevisto() { 
+        const sub = data.subjects[data.activeSubject]; const today = new Date().toISOString().split('T')[0];
+        sub.topics.forEach(t => { if(t.next <= today) t.next = shiftDate(today, 1); });
+        save(); render(); showToast("Imprevisto gestito!");
     }
-
-    function exportData() {
-        const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
-        const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-        a.download = `backup_med_hub.json`; a.click();
-    }
-
-    function importData(event) {
-        const reader = new FileReader();
-        reader.onload = (e) => { data = JSON.parse(e.target.result); save(); render(); };
-        reader.readAsText(event.target.files[0]);
-    }
-
-    function deleteTopic(id) {
-        if(confirm("Eliminare?")) {
-            data.subjects[data.activeSubject].topics = data.subjects[data.activeSubject].topics.filter(x => x.id !== id);
-            save(); render();
-        }
-    }
-
-    function editSubject(oldName) {
-        event.stopPropagation();
-        const action = prompt("1. Colore\n2. Elimina", "1");
-        if(action === "1") {
-            const newColor = prompt("Colore (HEX):", data.subjects[oldName].color);
-            if(newColor) data.subjects[oldName].color = newColor;
-        } else if(action === "2") {
-            if(confirm(oldName + "?")) { delete data.subjects[oldName]; data.activeSubject = Object.keys(data.subjects)[0] || null; }
-        }
-        save(); render();
-    }
-
-    function applyImprevisto() {
-        const sub = data.subjects[data.activeSubject];
-        const today = new Date().toISOString().split('T')[0];
-        sub.topics.forEach(t => { if(t.next <= today) t.next = shiftDate(t.next, 1); });
-        save(); render();
-    }
-
-    window.addEventListener('beforeunload', function (e) {
-        if (Object.keys(data.subjects).length > 0) { e.preventDefault(); e.returnValue = ''; }
-    });
 
     render();
 </script>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Study Hub Ultra V10.5</title>
+    <title>Study Hub Ultra V10.6</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -12,923 +12,222 @@
             --glass-border: rgba(255,255,255,0.09);
             --glass-hover: rgba(255,255,255,0.07);
             --primary: #7dd3fc;
-            --primary-glow: rgba(125,211,252,0.18);
+            --primary-glow: rgba(125,211,252,0.15);
             --text: #e2eaf2;
             --text-dim: #6b8299;
             --danger: #f87171;
             --warning: #fbbf24;
             --success: #34d399;
             --exam-color: #c084fc;
-            --exam-glow: rgba(192,132,252,0.2);
+            --exam-glow: rgba(192,132,252,0.18);
             --border: rgba(255,255,255,0.07);
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); font-size: 16px; min-height: 100vh; overflow-x: hidden; }
         body::before {
             content: ''; position: fixed; top: -50%; left: -50%; width: 200%; height: 200%;
-            background: radial-gradient(ellipse 60% 40% at 20% 10%, rgba(125,211,252,0.06) 0%, transparent 60%),
-                        radial-gradient(ellipse 50% 35% at 80% 80%, rgba(192,132,252,0.05) 0%, transparent 60%),
+            background: radial-gradient(ellipse 60% 40% at 20% 10%, rgba(125,211,252,0.05) 0%, transparent 60%),
+                        radial-gradient(ellipse 50% 35% at 80% 80%, rgba(192,132,252,0.04) 0%, transparent 60%),
                         radial-gradient(ellipse 40% 30% at 60% 30%, rgba(52,211,153,0.03) 0%, transparent 55%);
             pointer-events: none; z-index: 0;
         }
 
-        /* Toast */
-        #toast { visibility: hidden; min-width: 220px; background: rgba(125,211,252,0.15); backdrop-filter: blur(20px); border: 1px solid rgba(125,211,252,0.3); color: var(--primary); text-align: center; border-radius: 14px; padding: 14px 22px; position: fixed; z-index: 9999; left: 50%; bottom: 30px; transform: translateX(-50%); font-weight: 700; font-size: 0.9rem; letter-spacing: 0.5px; }
-        #toast.show { visibility: visible; animation: toastin 0.4s ease, toastout 0.4s 2.6s ease forwards; }
+        /* ── Toast ── */
+        #toast { visibility: hidden; min-width: 200px; background: rgba(125,211,252,0.12); backdrop-filter: blur(20px); border: 1px solid rgba(125,211,252,0.25); color: var(--primary); text-align: center; border-radius: 12px; padding: 12px 20px; position: fixed; z-index: 9999; left: 50%; bottom: 28px; transform: translateX(-50%); font-weight: 700; font-size: 0.85rem; letter-spacing: 0.3px; }
+        #toast.show { visibility: visible; animation: toastin 0.35s ease, toastout 0.35s 2.7s ease forwards; }
 
-        /* Sidebar */
-        .sidebar { background: rgba(6,13,20,0.85); backdrop-filter: blur(24px); border-bottom: 1px solid var(--glass-border); padding: 12px 16px; display: flex; gap: 10px; overflow-x: auto; position: sticky; top: 0; z-index: 1000; align-items: center; scrollbar-width: none; }
+        /* ── Sidebar ── */
+        .sidebar { background: rgba(6,13,20,0.88); backdrop-filter: blur(24px); border-bottom: 1px solid var(--glass-border); padding: 10px 14px; display: flex; gap: 9px; overflow-x: auto; position: sticky; top: 0; z-index: 1000; align-items: center; scrollbar-width: none; }
         .sidebar::-webkit-scrollbar { display: none; }
-        .subject-tab { padding: 9px 18px; border-radius: 50px; cursor: pointer; white-space: nowrap; font-weight: 600; font-size: 0.85rem; border: 1px solid var(--glass-border); background: var(--glass); color: var(--text-dim); transition: all 0.2s ease; user-select: none; }
+        .subject-tab { padding: 8px 16px; border-radius: 50px; cursor: pointer; white-space: nowrap; font-weight: 600; font-size: 0.82rem; border: 1px solid var(--glass-border); background: var(--glass); color: var(--text-dim); transition: all 0.2s; user-select: none; }
         .subject-tab:hover { background: var(--glass-hover); color: var(--text); }
         .subject-tab.active { color: var(--bg); background: var(--primary); border-color: transparent; font-weight: 700; }
         .subject-tab.exam-mode-active { background: var(--exam-color); border-color: transparent; color: #1a0a2e; }
-        .sidebar-add-btn { border-radius: 50%; width: 32px; height: 32px; min-width: 32px; border: 1px solid var(--glass-border); background: var(--glass); color: var(--primary); font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .sidebar-add-btn { border-radius: 50%; width: 30px; height: 30px; min-width: 30px; border: 1px solid var(--glass-border); background: var(--glass); color: var(--primary); font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
         .sidebar-add-btn:hover { background: var(--primary-glow); border-color: var(--primary); }
 
-        /* Container */
-        .container { padding: 16px; max-width: 680px; margin: auto; position: relative; z-index: 1; }
+        /* ── Container ── */
+        .container { padding: 14px; max-width: 680px; margin: auto; position: relative; z-index: 1; }
 
-        /* Glass Card */
-        .card { background: var(--glass); backdrop-filter: blur(20px); border-radius: 20px; padding: 20px; border: 1px solid var(--glass-border); margin-bottom: 14px; transition: border-color 0.2s; }
-        .card:hover { border-color: rgba(255,255,255,0.13); }
+        /* ── Glass Card (unico stile per tutto) ── */
+        .card { background: var(--glass); backdrop-filter: blur(20px); border-radius: 18px; padding: 18px; border: 1px solid var(--glass-border); margin-bottom: 12px; }
 
-        /* Inner nav */
-        .inner-nav { display: flex; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 14px; padding: 4px; margin-bottom: 16px; gap: 2px; }
-        .inner-nav-item { flex: 1; padding: 10px 6px; cursor: pointer; font-size: 0.7rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; border-radius: 10px; text-align: center; transition: all 0.2s; }
+        /* ── Inner nav ── */
+        .inner-nav { display: flex; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 13px; padding: 3px; margin-bottom: 14px; gap: 2px; }
+        .inner-nav-item { flex: 1; padding: 9px 4px; cursor: pointer; font-size: 0.68rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; border-radius: 10px; text-align: center; transition: all 0.2s; }
         .inner-nav-item:hover { color: var(--text); background: var(--glass-hover); }
         .inner-nav-item.active { color: var(--bg); background: var(--primary); }
         .inner-nav-item.exam-tab.active { background: var(--exam-color); }
 
-        /* Countdown */
-        .countdown-info { text-align: center; background: var(--primary-glow); border: 1px dashed rgba(125,211,252,0.3); padding: 12px; border-radius: 14px; margin-bottom: 12px; cursor: pointer; font-family: 'Space Mono', monospace; font-size: 1.1rem; font-weight: 700; color: var(--primary); letter-spacing: 2px; transition: all 0.2s; }
-        .countdown-info:hover { background: rgba(125,211,252,0.12); }
+        /* ── View toggle (stesso stile inner-nav) ── */
+        .view-toggle { display: flex; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 13px; padding: 3px; margin-bottom: 12px; gap: 2px; }
+        .view-btn { flex: 1; padding: 9px 4px; cursor: pointer; font-size: 0.68rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; border-radius: 10px; text-align: center; transition: all 0.2s; border: none; background: transparent; font-family: 'DM Sans', sans-serif; }
+        .view-btn:hover { color: var(--text); background: var(--glass-hover); }
+        .view-btn.active { color: var(--bg); background: var(--primary); }
+
+        /* ── Countdown ── */
+        .countdown-info { text-align: center; background: var(--primary-glow); border: 1px dashed rgba(125,211,252,0.28); padding: 12px; border-radius: 14px; margin-bottom: 12px; cursor: pointer; font-family: 'Space Mono', monospace; font-size: 1.2rem; font-weight: 700; color: var(--primary); letter-spacing: 3px; transition: all 0.2s; }
+        .countdown-info:hover { background: rgba(125,211,252,0.1); }
         .countdown-info.exam-mode { background: var(--exam-glow); border-color: rgba(192,132,252,0.4); color: var(--exam-color); animation: pulse-exam 2s ease-in-out infinite; }
 
-        /* ── Day-view agenda (stile Google Calendar) ── */
-        .gcal-wrapper { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 20px; overflow: hidden; margin-bottom: 14px; }
-        .gcal-weekstrip { display: flex; border-bottom: 1px solid var(--glass-border); }
-        .gcal-day-btn { flex: 1; padding: 10px 4px; text-align: center; cursor: pointer; transition: background 0.15s; border: none; background: transparent; color: var(--text-dim); font-family: 'DM Sans', sans-serif; }
+        /* ── GCal components (tutti condivisi) ── */
+        .gcal-wrapper { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 18px; overflow: hidden; margin-bottom: 12px; }
+        .gcal-nav { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; }
+        .gcal-nav-label { font-family: 'Space Mono', monospace; font-size: 0.82rem; color: var(--primary); font-weight: 700; letter-spacing: 1px; }
+        .gcal-arrow { cursor: pointer; color: var(--primary); background: var(--glass); border: 1px solid var(--glass-border); border-radius: 8px; padding: 5px 11px; font-size: 0.9rem; transition: all 0.2s; user-select: none; line-height: 1.4; }
+        .gcal-arrow:hover { background: var(--primary-glow); }
+        .gcal-weekstrip { display: flex; border-bottom: 1px solid var(--glass-border); border-top: 1px solid var(--glass-border); }
+        .gcal-day-btn { flex: 1; padding: 9px 2px; text-align: center; cursor: pointer; transition: background 0.15s; border: none; background: transparent; color: var(--text-dim); font-family: 'DM Sans', sans-serif; }
         .gcal-day-btn:hover { background: var(--glass-hover); }
-        .gcal-day-btn .dow { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 4px; }
-        .gcal-day-btn .dom { font-size: 1rem; font-weight: 700; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto; }
+        .gcal-day-btn .dow { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; display: block; margin-bottom: 4px; color: var(--text-dim); }
+        .gcal-day-btn .dom { font-size: 0.95rem; font-weight: 700; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto; }
         .gcal-day-btn.selected .dom { background: var(--primary); color: var(--bg); }
         .gcal-day-btn.today-marker .dom { border: 2px solid var(--primary); color: var(--primary); }
         .gcal-day-btn.selected.today-marker .dom { background: var(--primary); color: var(--bg); border: none; }
-        .gcal-day-btn .dot-row { display: flex; gap: 2px; justify-content: center; margin-top: 4px; min-height: 6px; }
-        .gcal-dot { width: 5px; height: 5px; border-radius: 50%; }
-        .gcal-nav { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px 0; }
-        .gcal-nav-label { font-family: 'Space Mono', monospace; font-size: 0.85rem; color: var(--primary); font-weight: 700; letter-spacing: 1px; }
-        .gcal-arrow { cursor: pointer; color: var(--primary); background: var(--glass); border: 1px solid var(--glass-border); border-radius: 8px; padding: 5px 12px; font-size: 1rem; transition: all 0.2s; user-select: none; }
-        .gcal-arrow:hover { background: var(--primary-glow); }
-        .gcal-day-events { padding: 14px 16px; min-height: 60px; }
-        .gcal-date-header { font-family: 'Space Mono', monospace; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 10px; letter-spacing: 0.5px; }
-        .gcal-no-events { opacity: 0.2; font-size: 0.82rem; padding-left: 2px; }
+        .gcal-day-btn .dot-row { display: flex; gap: 2px; justify-content: center; margin-top: 4px; min-height: 5px; }
+        .gcal-dot { width: 4px; height: 4px; border-radius: 50%; }
+        .gcal-day-events { padding: 12px 14px; min-height: 56px; }
+        .gcal-date-header { font-family: 'Space Mono', monospace; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 10px; letter-spacing: 0.5px; }
+        .gcal-no-events { opacity: 0.2; font-size: 0.8rem; }
 
-        /* ── Week-list (vista settimana classica) ── */
-        .day-section { margin-bottom: 22px; }
-        .day-title { font-family: 'Space Mono', monospace; font-size: 0.85rem; letter-spacing: 0.5px; color: var(--text-dim); border-bottom: 1px solid var(--border); padding-bottom: 7px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: baseline; }
-        .day-title.today { color: var(--primary); border-bottom-color: rgba(125,211,252,0.3); }
+        /* ── Topic card (unico stile) ── */
+        .topic-card { background: var(--glass); border-radius: 11px; padding: 10px 12px; margin-bottom: 7px; border: 1px solid var(--glass-border); border-left: 4px solid; transition: background 0.15s; }
+        .topic-card:hover { background: var(--glass-hover); }
+        .topic-name { font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 2px; }
+        .topic-time { font-family: 'Space Mono', monospace; font-size: 0.72rem; opacity: 0.6; margin-bottom: 2px; display: block; }
+        .subject-label { font-size: 0.73rem; opacity: 0.5; font-style: italic; }
+        .external-event { border-left-color: var(--warning) !important; }
+        .external-event .topic-name { color: var(--warning) !important; }
+
+        /* ── Week list ── */
+        .day-section { margin-bottom: 20px; }
+        .day-title { font-family: 'Space Mono', monospace; font-size: 0.82rem; letter-spacing: 0.4px; color: var(--text-dim); border-bottom: 1px solid var(--border); padding-bottom: 7px; margin-bottom: 9px; display: flex; justify-content: space-between; align-items: baseline; }
+        .day-title.today { color: var(--primary); border-bottom-color: rgba(125,211,252,0.28); }
 
         /* ── Month view ── */
-        .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--glass-border); border-radius: 14px; overflow: hidden; }
-        .month-cell { background: var(--bg); padding: 6px 4px; min-height: 60px; cursor: pointer; transition: background 0.15s; }
-        .month-cell:hover { background: rgba(255,255,255,0.03); }
-        .month-cell.other-month { opacity: 0.3; }
-        .month-cell.today-cell { background: rgba(125,211,252,0.06); }
-        .month-cell-num { font-size: 0.78rem; font-weight: 700; margin-bottom: 3px; color: var(--text-dim); font-family: 'Space Mono', monospace; }
+        .month-dow-header { display: grid; grid-template-columns: repeat(7,1fr); margin-bottom: 3px; }
+        .month-dow-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-dim); text-align: center; padding: 5px 0; }
+        .month-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 1px; background: var(--glass-border); border-radius: 12px; overflow: hidden; }
+        .month-cell { background: var(--bg); padding: 5px 3px; min-height: 56px; cursor: pointer; transition: background 0.15s; }
+        .month-cell:hover { background: rgba(255,255,255,0.025); }
+        .month-cell.other-month { opacity: 0.28; }
+        .month-cell.today-cell { background: rgba(125,211,252,0.05); }
+        .month-cell-num { font-size: 0.72rem; font-weight: 700; margin-bottom: 3px; color: var(--text-dim); font-family: 'Space Mono', monospace; text-align: center; }
         .month-cell.today-cell .month-cell-num { color: var(--primary); }
-        .month-event-pill { font-size: 0.6rem; border-radius: 4px; padding: 1px 4px; margin-bottom: 2px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .month-dow-header { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 4px; }
-        .month-dow-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-dim); text-align: center; padding: 6px 0; }
-        .view-toggle { display: flex; gap: 6px; margin-bottom: 12px; }
-        .view-btn { flex: 1; padding: 8px; border-radius: 10px; border: 1px solid var(--glass-border); background: var(--glass); color: var(--text-dim); font-size: 0.75rem; font-weight: 700; cursor: pointer; text-align: center; text-transform: uppercase; letter-spacing: 0.5px; transition: all 0.2s; font-family: 'DM Sans', sans-serif; }
-        .view-btn.active { background: var(--primary); color: var(--bg); border-color: transparent; }
+        .month-event-pill { font-size: 0.55rem; border-radius: 3px; padding: 1px 3px; margin-bottom: 1px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #060d14; opacity: 0.9; }
 
-        /* Filter bar */
-        .filter-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-        .filter-chip { padding: 6px 12px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; border: 1px solid var(--glass-border); background: var(--glass); color: var(--text-dim); cursor: pointer; transition: all 0.2s; letter-spacing: 0.3px; user-select: none; }
+        /* ── Filter bar ── */
+        .filter-bar { display: flex; gap: 7px; margin-bottom: 11px; align-items: center; }
+        .filter-chip { padding: 6px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; border: 1px solid var(--glass-border); background: var(--glass); color: var(--text-dim); cursor: pointer; transition: all 0.2s; letter-spacing: 0.3px; user-select: none; }
         .filter-chip.on { color: var(--bg); border-color: transparent; }
         .filter-chip.on.chip-ripasso { background: var(--primary); }
         .filter-chip.on.chip-esterni { background: var(--warning); color: #1a0f00; }
 
-        /* Topic card */
-        .topic-card { background: var(--glass); border-radius: 12px; padding: 11px 13px; margin-bottom: 7px; border: 1px solid var(--glass-border); border-left: 4px solid; transition: all 0.2s; }
-        .topic-card:hover { background: var(--glass-hover); }
-        .topic-name { font-weight: 600; font-size: 0.92rem; display: block; margin-bottom: 3px; }
-        .subject-label { font-size: 0.75rem; opacity: 0.55; font-style: italic; }
-        .external-event { border-left-color: var(--warning) !important; opacity: 0.8; }
-        .external-event .topic-name { color: var(--warning) !important; }
-
-        /* Buttons */
-        .btn { border: none; padding: 14px 20px; border-radius: 12px; cursor: pointer; font-weight: 700; font-family: 'DM Sans', sans-serif; width: 100%; margin-top: 10px; font-size: 0.88rem; letter-spacing: 0.5px; text-transform: uppercase; transition: all 0.2s; }
+        /* ── Buttons ── */
+        .btn { border: none; padding: 13px 18px; border-radius: 11px; cursor: pointer; font-weight: 700; font-family: 'DM Sans', sans-serif; width: 100%; margin-top: 9px; font-size: 0.85rem; letter-spacing: 0.4px; text-transform: uppercase; transition: all 0.2s; }
         .btn-primary { background: var(--primary); color: var(--bg); }
-        .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
-        .btn-danger { background: rgba(248,113,113,0.15); color: var(--danger); border: 1px solid rgba(248,113,113,0.3); }
-        .btn-danger:hover { background: rgba(248,113,113,0.25); }
-        .btn-danger.solid { background: var(--danger); color: #fff; border: none; }
+        .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+        .btn-danger-soft { background: rgba(248,113,113,0.1); color: var(--danger); border: 1px solid rgba(248,113,113,0.25); }
+        .btn-danger-soft:hover { background: rgba(248,113,113,0.18); }
+        .btn-danger-solid { background: var(--danger); color: #fff; border: none; }
         .btn-secondary { background: var(--glass); color: var(--text-dim); border: 1px solid var(--glass-border); }
         .btn-secondary:hover { background: var(--glass-hover); color: var(--text); }
-        .btn-exam { background: var(--exam-glow); color: var(--exam-color); border: 1px solid rgba(192,132,252,0.3); }
-        .btn-exam:hover { background: rgba(192,132,252,0.2); }
-        .btn-small { padding: 8px 16px; font-size: 0.75rem; width: auto; display: inline-block; margin: 0; }
-        .imprevisto-btn { width: 100%; padding: 13px; border: none; border-radius: 12px; background: rgba(248,113,113,0.1); color: var(--danger); border: 1px solid rgba(248,113,113,0.25); font-weight: 700; font-size: 0.82rem; letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer; margin-bottom: 12px; transition: all 0.2s; font-family: 'DM Sans', sans-serif; }
-        .imprevisto-btn:hover { background: rgba(248,113,113,0.18); }
+        .btn-exam { background: var(--exam-glow); color: var(--exam-color); border: 1px solid rgba(192,132,252,0.28); }
+        .btn-exam:hover { background: rgba(192,132,252,0.18); }
+        .btn-small { padding: 7px 14px; font-size: 0.72rem; width: auto; display: inline-block; margin: 0; }
+        .btn-icon { padding: 7px 12px; font-size: 0.72rem; width: auto; margin: 0; }
 
-        /* Db actions bottom */
-        .db-actions { border-top: 1px solid var(--glass-border); padding-top: 16px; margin-top: 10px; display: flex; gap: 10px; }
-        .db-actions .btn { flex: 1; margin-top: 0; font-size: 0.78rem; padding: 12px; }
+        .imprevisto-btn { width: 100%; padding: 12px; border: none; border-radius: 11px; background: rgba(248,113,113,0.08); color: var(--danger); border: 1px solid rgba(248,113,113,0.22); font-weight: 700; font-size: 0.8rem; letter-spacing: 0.3px; text-transform: uppercase; cursor: pointer; margin-bottom: 11px; transition: all 0.2s; font-family: 'DM Sans', sans-serif; }
+        .imprevisto-btn:hover { background: rgba(248,113,113,0.15); }
 
-        .hidden { display: none !important; }
-        input[type="text"], input[type="date"], textarea { width: 100%; padding: 13px 15px; margin-bottom: 12px; border-radius: 12px; border: 1px solid var(--glass-border); background: rgba(0,0,0,0.3); color: var(--text); font-size: 0.92rem; font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.2s; }
-        input[type="text"]:focus, textarea:focus { border-color: rgba(125,211,252,0.4); }
-        textarea { resize: vertical; min-height: 75px; }
-        input[type="file"] { display: none; }
+        /* ── Ripasso cards ── */
+        .ripasso-card { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 16px; padding: 15px; margin-bottom: 10px; border-left: 4px solid; }
 
-        /* Triage */
-        .triage-box { display: flex; gap: 8px; margin-bottom: 14px; }
-        .t-dot { flex: 1; padding: 10px 4px; border-radius: 10px; font-size: 0.68rem; font-weight: 700; text-align: center; cursor: pointer; transition: all 0.2s; opacity: 0.3; border: 1px solid transparent; letter-spacing: 0.5px; }
-        .t-dot:hover { opacity: 0.6; }
-        .t-dot.active { opacity: 1; border-color: rgba(255,255,255,0.4); }
+        /* 4-button rate grid */
+        .rate-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
+        .rate-btn { border: none; border-radius: 9px; padding: 10px 4px; font-size: 0.68rem; font-weight: 700; cursor: pointer; text-transform: uppercase; transition: all 0.18s; font-family: 'DM Sans', sans-serif; letter-spacing: 0.3px; line-height: 1.3; }
+        .rate-btn:hover { transform: translateY(-1px); filter: brightness(1.1); }
+        .rate-btn .rate-sub { font-size: 0.58rem; display: block; opacity: 0.65; font-weight: 400; margin-top: 2px; text-transform: none; letter-spacing: 0; }
 
-        /* Notes */
-        .notes-toggle { color: var(--primary); cursor: pointer; font-weight: 600; font-size: 0.8rem; margin: 10px 0 0 0; display: inline-flex; align-items: center; gap: 5px; opacity: 0.8; transition: opacity 0.2s; }
+        /* ── Triage ── */
+        .triage-box { display: flex; gap: 7px; margin-bottom: 13px; }
+        .t-dot { flex: 1; padding: 9px 4px; border-radius: 9px; font-size: 0.65rem; font-weight: 700; text-align: center; cursor: pointer; transition: all 0.2s; opacity: 0.28; border: 1px solid transparent; letter-spacing: 0.4px; }
+        .t-dot:hover { opacity: 0.55; }
+        .t-dot.active { opacity: 1; border-color: rgba(255,255,255,0.35); }
+
+        /* ── Notes ── */
+        .notes-toggle { color: var(--primary); cursor: pointer; font-weight: 600; font-size: 0.78rem; margin: 9px 0 0 0; display: inline-flex; align-items: center; gap: 4px; opacity: 0.75; transition: opacity 0.2s; }
         .notes-toggle:hover { opacity: 1; }
-        .notes-content { background: rgba(0,0,0,0.25); padding: 11px; border-radius: 10px; border: 1px solid var(--glass-border); margin-top: 9px; }
+        .notes-content { background: rgba(0,0,0,0.22); padding: 10px; border-radius: 9px; border: 1px solid var(--glass-border); margin-top: 8px; }
 
-        /* Modali */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); z-index: 5000; display: flex; align-items: center; justify-content: center; }
-        .modal-card { width: 90%; max-width: 420px; background: rgba(10,18,28,0.96); backdrop-filter: blur(30px); border: 1px solid var(--glass-border); border-radius: 22px; padding: 26px 22px; }
-        .modal-title { font-family: 'Space Mono', monospace; font-size: 0.95rem; font-weight: 700; letter-spacing: 1px; margin-bottom: 18px; color: var(--text); }
-        .modal-btns { display: flex; gap: 10px; margin-top: 4px; }
+        /* ── Modali ── */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); backdrop-filter: blur(10px); z-index: 5000; display: flex; align-items: center; justify-content: center; }
+        .modal-card { width: 92%; max-width: 420px; background: rgba(8,16,26,0.97); backdrop-filter: blur(30px); border: 1px solid var(--glass-border); border-radius: 20px; padding: 24px 20px; }
+        .modal-title { font-family: 'Space Mono', monospace; font-size: 0.9rem; font-weight: 700; letter-spacing: 1px; margin-bottom: 16px; color: var(--text); }
+        .modal-btns { display: flex; gap: 9px; margin-top: 4px; }
         .modal-btns .btn { flex: 1; margin-top: 0; }
 
-        /* Statistiche */
-        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
-        .stat-box { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 14px; padding: 15px 12px; text-align: center; }
-        .stat-number { font-family: 'Space Mono', monospace; font-size: 1.7rem; font-weight: 700; line-height: 1; margin-bottom: 4px; }
-        .stat-label { font-size: 0.68rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; }
-        .progress-bar-wrap { margin-bottom: 13px; }
-        .progress-label { display: flex; justify-content: space-between; font-size: 0.73rem; margin-bottom: 5px; color: var(--text-dim); }
-        .progress-bar-bg { background: rgba(255,255,255,0.06); border-radius: 99px; height: 7px; overflow: hidden; }
+        /* ── Inputs ── */
+        input[type="text"], input[type="time"], textarea, select.styled-select {
+            width: 100%; padding: 12px 14px; margin-bottom: 10px; border-radius: 11px;
+            border: 1px solid var(--glass-border); background: rgba(0,0,0,0.28);
+            color: var(--text); font-size: 0.9rem; font-family: 'DM Sans', sans-serif;
+            outline: none; transition: border-color 0.2s;
+        }
+        input[type="text"]:focus, input[type="time"]:focus, textarea:focus, select.styled-select:focus { border-color: rgba(125,211,252,0.38); }
+        textarea { resize: vertical; min-height: 70px; }
+        input[type="file"] { display: none; }
+
+        /* ── Statistiche ── */
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 13px; }
+        .stat-box { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 13px; padding: 14px 11px; text-align: center; }
+        .stat-number { font-family: 'Space Mono', monospace; font-size: 1.6rem; font-weight: 700; line-height: 1; margin-bottom: 4px; }
+        .stat-label { font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; }
+        .progress-bar-wrap { margin-bottom: 12px; }
+        .progress-label { display: flex; justify-content: space-between; font-size: 0.7rem; margin-bottom: 5px; color: var(--text-dim); }
+        .progress-bar-bg { background: rgba(255,255,255,0.05); border-radius: 99px; height: 6px; overflow: hidden; }
         .progress-bar-fill { height: 100%; border-radius: 99px; transition: width 0.6s ease; }
 
-        /* Exam banner */
-        .exam-banner { background: var(--exam-glow); border: 1px solid rgba(192,132,252,0.3); border-radius: 13px; padding: 11px 14px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; }
-        .exam-banner-text { color: var(--exam-color); font-weight: 700; letter-spacing: 0.3px; }
-        .exam-toggle-btn { background: var(--exam-color); color: #1a0a2e; border: none; border-radius: 8px; padding: 5px 12px; font-size: 0.72rem; font-weight: 700; cursor: pointer; transition: opacity 0.2s; font-family: 'DM Sans', sans-serif; }
-        .exam-toggle-btn:hover { opacity: 0.85; }
+        /* ── Exam banner ── */
+        .exam-banner { background: var(--exam-glow); border: 1px solid rgba(192,132,252,0.28); border-radius: 12px; padding: 10px 13px; margin-bottom: 11px; display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem; gap: 10px; }
+        .exam-banner-text { color: var(--exam-color); font-weight: 700; font-size: 0.75rem; }
+        .exam-toggle-btn { background: var(--exam-color); color: #1a0a2e; border: none; border-radius: 7px; padding: 5px 11px; font-size: 0.7rem; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: 'DM Sans', sans-serif; flex-shrink: 0; }
 
-        /* Cold spots */
-        .cold-card { background: rgba(248,113,113,0.05); border: 1px solid rgba(248,113,113,0.2); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
-        .cold-title { color: var(--danger); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
-        .cold-item { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(248,113,113,0.1); font-size: 0.86rem; }
+        /* ── Cold spots ── */
+        .cold-card { background: rgba(248,113,113,0.04); border: 1px solid rgba(248,113,113,0.18); border-radius: 14px; padding: 13px; margin-bottom: 12px; }
+        .cold-title { color: var(--danger); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 9px; }
+        .cold-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(248,113,113,0.08); font-size: 0.84rem; }
         .cold-item:last-child { border-bottom: none; }
 
-        .section-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-dim); margin-bottom: 12px; }
-        .ripasso-card { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 16px; padding: 16px; margin-bottom: 11px; border-left: 4px solid; }
-        .rate-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin-top: 13px; }
-        .rate-btn { border: none; border-radius: 10px; padding: 10px 4px; font-size: 0.7rem; font-weight: 700; cursor: pointer; text-transform: uppercase; transition: all 0.2s; font-family: 'DM Sans', sans-serif; }
-        .rate-btn:hover { transform: translateY(-2px); }
+        .section-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.4px; color: var(--text-dim); margin-bottom: 11px; }
 
-        /* CSV import modal */
-        .csv-help { font-size: 0.75rem; color: var(--text-dim); line-height: 1.6; margin-bottom: 14px; background: rgba(0,0,0,0.25); padding: 11px; border-radius: 10px; border: 1px solid var(--glass-border); }
-        .csv-help code { background: rgba(125,211,252,0.1); color: var(--primary); padding: 1px 5px; border-radius: 4px; font-family: 'Space Mono', monospace; font-size: 0.8em; }
+        /* ── DB actions ── */
+        .db-actions { display: flex; gap: 8px; margin-top: 0; }
+        .db-actions .btn { flex: 1; margin-top: 0; font-size: 0.72rem; padding: 11px 8px; }
 
-        @keyframes toastin { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+        /* ── CSV help ── */
+        .csv-help { font-size: 0.72rem; color: var(--text-dim); line-height: 1.65; margin-bottom: 12px; background: rgba(0,0,0,0.22); padding: 10px; border-radius: 10px; border: 1px solid var(--glass-border); }
+        .csv-help code { background: rgba(125,211,252,0.1); color: var(--primary); padding: 1px 4px; border-radius: 3px; font-family: 'Space Mono', monospace; font-size: 0.85em; }
+
+        .hidden { display: none !important; }
+
+        @keyframes toastin { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
         @keyframes toastout { from { opacity: 1; } to { opacity: 0; } }
-        @keyframes pulse-exam { 0%, 100% { box-shadow: 0 0 0 0 rgba(192,132,252,0); } 50% { box-shadow: 0 0 0 6px rgba(192,132,252,0.15); } }
+        @keyframes pulse-exam { 0%, 100% { box-shadow: 0 0 0 0 rgba(192,132,252,0); } 50% { box-shadow: 0 0 0 5px rgba(192,132,252,0.12); } }
     </style>
 </head>
 <body>
-    <div id="toast"></div>
+<div id="toast"></div>
 
-    <div class="sidebar" id="subjectBar">
-        <div class="subject-tab active" id="globalBtn" onclick="setView('global')">Agenda</div>
-        <button class="sidebar-add-btn" onclick="openModal('modalNewSubject')">+</button>
-    </div>
+<div class="sidebar" id="subjectBar">
+    <div class="subject-tab active" id="globalBtn" onclick="setView('global')">Agenda</div>
+    <button class="sidebar-add-btn" onclick="openModal('modalNewSubject')">+</button>
+</div>
 
-    <div id="appContent" class="container"></div>
+<div id="appContent" class="container"></div>
 
-    <!-- Modali -->
-    <div id="modalNewSubject" class="modal-overlay hidden">
-        <div class="modal-card">
-            <div class="modal-title">NUOVA MATERIA</div>
-            <input type="text" id="inSubName" placeholder="Nome materia...">
-            <div class="modal-btns">
-                <button class="btn btn-primary" onclick="addNewSubject()">AGGIUNGI</button>
-                <button class="btn btn-secondary" onclick="closeModal('modalNewSubject')">ANNULLA</button>
-            </div>
-        </div>
-    </div>
-    <div id="modalExamDate" class="modal-overlay hidden">
-        <div class="modal-card">
-            <div class="modal-title">DATA ESAME</div>
-            <input type="text" id="inExamDate" placeholder="GG/MM/AAAA">
-            <div class="modal-btns">
-                <button class="btn btn-primary" onclick="confirmExamDate()">SALVA</button>
-                <button class="btn btn-secondary" onclick="closeModal('modalExamDate')">ANNULLA</button>
-            </div>
-        </div>
-    </div>
-    <div id="modalEditDate" class="modal-overlay hidden">
-        <div class="modal-card">
-            <div class="modal-title">RIPIANIFICA</div>
-            <input type="text" id="inNewDate" placeholder="GG/MM/AAAA">
-            <input type="hidden" id="editTopicId">
-            <div class="modal-btns">
-                <button class="btn btn-primary" onclick="confirmManualDate()">SALVA</button>
-                <button class="btn btn-secondary" onclick="closeModal('modalEditDate')">ANNULLA</button>
-            </div>
-        </div>
-    </div>
-    <div id="modalExt" class="modal-overlay hidden">
-        <div class="modal-card">
-            <div class="modal-title">IMPEGNO ESTERNO</div>
-            <input type="text" id="extTitle" placeholder="Descrizione...">
-            <input type="text" id="extDate" placeholder="GG/MM/AAAA">
-            <div class="modal-btns">
-                <button class="btn btn-primary" onclick="addExternalEvent()">SALVA</button>
-                <button class="btn btn-secondary" onclick="closeModal('modalExt')">ANNULLA</button>
-            </div>
-        </div>
-    </div>
-    <div id="modalConfirmDelete" class="modal-overlay hidden">
-        <div class="modal-card" style="text-align:center;">
-            <div class="modal-title" style="color:var(--danger);">ELIMINARE?</div>
-            <p style="opacity:0.55; margin-bottom:20px; font-size:0.86rem;">Questa azione non è reversibile.</p>
-            <div class="modal-btns">
-                <button class="btn btn-danger solid" id="confirmDeleteBtn">ELIMINA</button>
-                <button class="btn btn-secondary" onclick="closeModal('modalConfirmDelete')">ANNULLA</button>
-            </div>
-        </div>
-    </div>
-    <!-- Modale Import CSV/Excel -->
-    <div id="modalImportCsv" class="modal-overlay hidden">
-        <div class="modal-card">
-            <div class="modal-title">IMPORTA DA CSV / EXCEL</div>
-            <div class="csv-help">
-                Esporta il tuo Google Calendar o Excel come file <code>.csv</code> con colonne:<br>
-                <code>Titolo, Data (GG/MM/AAAA)</code> — una riga per evento.<br><br>
-                Da Google Calendar: <em>Impostazioni → Esporta</em> (poi converti in CSV semplice).<br>
-                Da Excel: <em>Salva come → CSV UTF-8</em>.
-            </div>
-            <input type="text" id="csvRaw" placeholder="Incolla qui il contenuto CSV..." style="min-height:100px;" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'">
-            <select id="csvSubjectTarget" style="width:100%;padding:13px 15px;margin-bottom:12px;border-radius:12px;border:1px solid var(--glass-border);background:rgba(0,0,0,0.3);color:var(--text);font-size:0.92rem;font-family:'DM Sans',sans-serif;outline:none;"></select>
-            <div class="modal-btns">
-                <button class="btn btn-primary" onclick="importFromCsv()">IMPORTA</button>
-                <button class="btn btn-secondary" onclick="closeModal('modalImportCsv')">ANNULLA</button>
-            </div>
-        </div>
-    </div>
-
-    <input type="file" id="importFileInput" accept=".json" onchange="handleImport(event)">
-    <input type="file" id="importCsvFileInput" accept=".csv" onchange="handleCsvFile(event)">
-
-    <script>
-        // ── Dati ──────────────────────────────────────────────────────────────
-        let data = JSON.parse(localStorage.getItem('multiSubjectDataV6')) || {
-            subjects: {}, isGlobal: true, activeSub: null,
-            triage: 1, activeTab: 'dayview', externalEvents: [],
-            globalView: 'dayview', filterRipasso: true, filterEsterni: true
-        };
-        // Assicura campi nuovi su dati esistenti
-        if (!data.globalView) data.globalView = 'dayview';
-        if (data.filterRipasso === undefined) data.filterRipasso = true;
-        if (data.filterEsterni === undefined) data.filterEsterni = true;
-
-        let weekOffset = 0;
-        let selectedDayOffset = 0; // offset in giorni rispetto a oggi, per la dayview
-        let monthOffset = 0;
-
-        const colors = ['#7dd3fc','#34d399','#fbbf24','#f472b6','#f87171','#a78bfa'];
-        const DOW_SHORT = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
-        const DOW_FULL = ['DOMENICA','LUNEDÌ','MARTEDÌ','MERCOLEDÌ','GIOVEDÌ','VENERDÌ','SABATO'];
-        const MONTHS_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
-
-        function save() { localStorage.setItem('multiSubjectDataV6', JSON.stringify(data)); }
-        function showToast(msg) { const x = document.getElementById('toast'); x.innerHTML = msg; x.className = 'show'; setTimeout(() => x.className = '', 3200); }
-        function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
-        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-        function shiftDate(s, d) { let date = new Date(s); date.setDate(date.getDate() + d); return date.toISOString().split('T')[0]; }
-        function todayStr() {
-            // Fix bug offset: usa data locale, non UTC
-            const now = new Date();
-            return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-        }
-        function localDateStr(date) {
-            return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-        }
-
-        // ── Modalità Esame ────────────────────────────────────────────────────
-        function isExamMode(subName) {
-            const sub = data.subjects[subName];
-            if (!sub) return false;
-            if (sub.examModeManual) return true;
-            if (sub.examDate) {
-                const today = new Date(); today.setHours(0,0,0,0);
-                const exam = new Date(sub.examDate);
-                const diff = Math.ceil((exam - today) / (1000*60*60*24));
-                return diff > 0 && diff <= 7;
-            }
-            return false;
-        }
-        function toggleExamMode(subName) {
-            data.subjects[subName].examModeManual = !data.subjects[subName].examModeManual;
-            save(); render();
-        }
-
-        // ── Navigazione ───────────────────────────────────────────────────────
-        function setView(view, sub = null) {
-            data.isGlobal = (view === 'global');
-            data.activeSub = sub;
-            weekOffset = 0; selectedDayOffset = 0; monthOffset = 0;
-            save(); render();
-        }
-
-        function render() {
-            const bar = document.getElementById('subjectBar');
-            bar.querySelectorAll('.subject-tab:not(#globalBtn)').forEach(e => e.remove());
-            document.getElementById('globalBtn').classList.toggle('active', data.isGlobal);
-            Object.keys(data.subjects).forEach(name => {
-                const btn = document.createElement('div');
-                const isActive = !data.isGlobal && data.activeSub === name;
-                const examM = isExamMode(name);
-                btn.className = `subject-tab${isActive ? ' active' : ''}${isActive && examM ? ' exam-mode-active' : ''}`;
-                btn.textContent = name + (examM ? ' 🔴' : '');
-                btn.onclick = () => setView('subject', name);
-                bar.insertBefore(btn, bar.children[bar.children.length - 1]);
-            });
-            const app = document.getElementById('appContent');
-            if (data.isGlobal) renderGlobal(app);
-            else renderMateria(app);
-        }
-
-        // ── Vista Globale ─────────────────────────────────────────────────────
-        function renderGlobal(target) {
-            const v = data.globalView || 'dayview';
-            target.innerHTML = `
-                <div class="view-toggle">
-                    <div class="view-btn${v==='dayview'?' active':''}" onclick="setGlobalView('dayview')">Giorno</div>
-                    <div class="view-btn${v==='week'?' active':''}" onclick="setGlobalView('week')">Settimana</div>
-                    <div class="view-btn${v==='month'?' active':''}" onclick="setGlobalView('month')">Mese</div>
-                </div>
-                <div class="filter-bar">
-                    <div class="filter-chip chip-ripasso${data.filterRipasso?' on':''}" onclick="toggleFilter('ripasso')">● Ripassi</div>
-                    <div class="filter-chip chip-esterni${data.filterEsterni?' on':''}" onclick="toggleFilter('esterni')">● Esterni</div>
-                    <div style="margin-left:auto;">
-                        <button class="btn btn-secondary btn-small" onclick="openModal('modalExt')">+ Impegno</button>
-                    </div>
-                </div>
-                <div id="mainCalendarArea"></div>
-                <div id="coldSpotsSection"></div>
-                <div class="card" style="margin-top:6px;">
-                    <div class="section-label">Database</div>
-                    <div class="db-actions">
-                        <button class="btn btn-secondary" onclick="document.getElementById('importFileInput').click()">⬆ Importa Database</button>
-                        <button class="btn btn-secondary" onclick="exportData()">⬇ Esporta Database</button>
-                    </div>
-                    <div class="db-actions" style="margin-top:6px;">
-                        <button class="btn btn-secondary" onclick="openCsvImport()">📅 Importa da CSV / Excel</button>
-                    </div>
-                </div>`;
-            renderMainCalendar();
-            renderColdSpots();
-        }
-
-        function setGlobalView(v) { data.globalView = v; weekOffset = 0; selectedDayOffset = 0; monthOffset = 0; save(); renderGlobal(document.getElementById('appContent')); }
-        function toggleFilter(f) {
-            if (f === 'ripasso') data.filterRipasso = !data.filterRipasso;
-            else data.filterEsterni = !data.filterEsterni;
-            save(); renderMainCalendar();
-            // update chips
-            document.querySelectorAll('.filter-chip').forEach(c => {
-                if (c.classList.contains('chip-ripasso')) c.classList.toggle('on', data.filterRipasso);
-                if (c.classList.contains('chip-esterni')) c.classList.toggle('on', data.filterEsterni);
-            });
-        }
-
-        function renderMainCalendar() {
-            const area = document.getElementById('mainCalendarArea');
-            if (!area) return;
-            if (data.globalView === 'dayview') renderDayView(area);
-            else if (data.globalView === 'week') renderWeekList(area);
-            else renderMonthView(area);
-        }
-
-        // Raccoglie tutti gli eventi per una data
-        function getEventsForDate(dStr) {
-            const events = [];
-            if (data.filterRipasso) {
-                Object.keys(data.subjects).forEach(s => {
-                    const examM = isExamMode(s);
-                    data.subjects[s].topics.forEach(t => {
-                        if (t.next !== dStr) return;
-                        if (examM && t.triage !== 3) return;
-                        events.push({ type: 'ripasso', name: t.name, subject: s, triage: t.triage, color: t.triage==3?'var(--danger)':(t.triage==2?'var(--warning)':data.subjects[s].color) });
-                    });
-                });
-            }
-            if (data.filterEsterni) {
-                (data.externalEvents||[]).forEach(e => {
-                    if (e.date === dStr) events.push({ type: 'external', name: e.title, color: 'var(--warning)' });
-                });
-            }
-            return events;
-        }
-
-        // ── Day View (stile Google Calendar) ─────────────────────────────────
-        function renderDayView(area) {
-            const today = new Date(); today.setHours(0,0,0,0);
-            // Calcola lunedì della settimana corrente + weekOffset
-            const dow = today.getDay() === 0 ? 7 : today.getDay();
-            const monday = new Date(today);
-            monday.setDate(today.getDate() - (dow - 1) + (weekOffset * 7));
-
-            // Crea array di 7 giorni
-            const days = [];
-            for (let i = 0; i < 7; i++) {
-                const d = new Date(monday); d.setDate(monday.getDate() + i);
-                days.push(d);
-            }
-
-            // Giorno selezionato: selectedDayOffset è l'indice 0-6 nella settimana corrente
-            // ma se cambiamo settimana, resetta a lunedì
-            const selIdx = Math.max(0, Math.min(6, selectedDayOffset));
-            const selDay = days[selIdx];
-            const selStr = localDateStr(selDay);
-            const todayStr_ = localDateStr(today);
-
-            // Dots per ogni giorno
-            const dotsByDay = days.map(d => getEventsForDate(localDateStr(d)));
-
-            area.innerHTML = `
-                <div class="gcal-wrapper">
-                    <div class="gcal-nav">
-                        <div class="gcal-arrow" onclick="changeDayWeek(-1)">❮</div>
-                        <div class="gcal-nav-label">${MONTHS_IT[monday.getMonth()]} ${monday.getFullYear()}</div>
-                        <div class="gcal-arrow" onclick="changeDayWeek(1)">❯</div>
-                    </div>
-                    <div class="gcal-weekstrip">
-                        ${days.map((d,i) => {
-                            const dStr = localDateStr(d);
-                            const isToday = dStr === todayStr_;
-                            const isSel = i === selIdx;
-                            const dots = dotsByDay[i];
-                            const dotHtml = dots.slice(0,4).map(e => `<div class="gcal-dot" style="background:${e.color}"></div>`).join('');
-                            return `<div class="gcal-day-btn${isSel?' selected':''}${isToday?' today-marker':''}" onclick="selectDay(${i})">
-                                <span class="dow">${DOW_SHORT[d.getDay()]}</span>
-                                <div class="dom">${d.getDate()}</div>
-                                <div class="dot-row">${dotHtml}</div>
-                            </div>`;
-                        }).join('')}
-                    </div>
-                    <div class="gcal-day-events">
-                        <div class="gcal-date-header">${selDay.getDate()} ${MONTHS_IT[selDay.getMonth()]} ${selDay.getFullYear()} — ${DOW_FULL[selDay.getDay()]}</div>
-                        ${renderEventCards(selStr)}
-                    </div>
-                </div>`;
-        }
-
-        function renderEventCards(dStr) {
-            const events = getEventsForDate(dStr);
-            if (!events.length) return '<div class="gcal-no-events">Nessuna attività</div>';
-            return events.map(e => `
-                <div class="topic-card${e.type==='external'?' external-event':''}" style="border-left-color:${e.color}">
-                    <span class="topic-name" style="color:${e.color}">${e.name}</span>
-                    ${e.subject ? `<span class="subject-label">${e.subject}</span>` : ''}
-                </div>`).join('');
-        }
-
-        function changeDayWeek(dir) { weekOffset += dir; selectedDayOffset = 0; renderMainCalendar(); }
-        function selectDay(idx) { selectedDayOffset = idx; renderMainCalendar(); }
-
-        // ── Week List ─────────────────────────────────────────────────────────
-        function renderWeekList(area) {
-            const today = new Date(); today.setHours(0,0,0,0);
-            const dow = today.getDay() === 0 ? 7 : today.getDay();
-            const monday = new Date(today);
-            monday.setDate(today.getDate() - (dow - 1) + (weekOffset * 7));
-            const todayISO = localDateStr(today);
-
-            let html = `<div class="card">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
-                    <div class="gcal-arrow" onclick="changeWeekList(-1)">❮</div>
-                    <div class="gcal-nav-label">DAL ${monday.getDate()}/${monday.getMonth()+1}</div>
-                    <div class="gcal-arrow" onclick="changeWeekList(1)">❯</div>
-                </div>`;
-
-            for (let i = 0; i < 7; i++) {
-                const day = new Date(monday); day.setDate(monday.getDate() + i);
-                const dStr = localDateStr(day);
-                const isToday = dStr === todayISO;
-                const events = getEventsForDate(dStr);
-                const evHtml = events.map(e => `
-                    <div class="topic-card${e.type==='external'?' external-event':''}" style="border-left-color:${e.color}">
-                        <span class="topic-name" style="color:${e.color}">${e.name}</span>
-                        ${e.subject ? `<span class="subject-label">${e.subject}</span>` : ''}
-                    </div>`).join('');
-                html += `<div class="day-section">
-                    <div class="day-title${isToday?' today':''}">
-                        <span>${day.getDate()} ${day.toLocaleDateString('it-IT',{month:'short'}).toUpperCase()}</span>
-                        <span style="font-size:0.7rem;opacity:0.45;">${DOW_FULL[day.getDay()]}</span>
-                    </div>
-                    ${evHtml || '<p class="gcal-no-events">nessuna attività</p>'}
-                </div>`;
-            }
-            html += '</div>';
-            area.innerHTML = html;
-        }
-        function changeWeekList(dir) { weekOffset += dir; renderMainCalendar(); }
-
-        // ── Month View ────────────────────────────────────────────────────────
-        function renderMonthView(area) {
-            const today = new Date(); today.setHours(0,0,0,0);
-            const base = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
-            const year = base.getFullYear(), month = base.getMonth();
-            const todayISO = localDateStr(today);
-            const firstDow = base.getDay() === 0 ? 7 : base.getDay(); // 1=lun
-            const daysInMonth = new Date(year, month+1, 0).getDate();
-
-            let cells = '';
-            // celle precedenti
-            for (let i = 1; i < firstDow; i++) {
-                const d = new Date(year, month, 1 - (firstDow - i));
-                const dStr = localDateStr(d);
-                const events = getEventsForDate(dStr);
-                cells += monthCell(d, dStr, todayISO, events, true);
-            }
-            for (let d = 1; d <= daysInMonth; d++) {
-                const date = new Date(year, month, d);
-                const dStr = localDateStr(date);
-                const events = getEventsForDate(dStr);
-                cells += monthCell(date, dStr, todayISO, events, false);
-            }
-            // celle successive
-            const total = (firstDow - 1) + daysInMonth;
-            const remainder = total % 7 === 0 ? 0 : 7 - (total % 7);
-            for (let i = 1; i <= remainder; i++) {
-                const date = new Date(year, month+1, i);
-                const dStr = localDateStr(date);
-                cells += monthCell(date, dStr, todayISO, [], true);
-            }
-
-            area.innerHTML = `<div class="card">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-                    <div class="gcal-arrow" onclick="changeMonth(-1)">❮</div>
-                    <div class="gcal-nav-label">${MONTHS_IT[month].toUpperCase()} ${year}</div>
-                    <div class="gcal-arrow" onclick="changeMonth(1)">❯</div>
-                </div>
-                <div class="month-dow-header">${['L','M','M','G','V','S','D'].map(d=>`<div class="month-dow-label">${d}</div>`).join('')}</div>
-                <div class="month-grid">${cells}</div>
-            </div>`;
-        }
-
-        function monthCell(date, dStr, todayISO, events, otherMonth) {
-            const isToday = dStr === todayISO;
-            const pills = events.slice(0,3).map(e => {
-                const bg = e.color.startsWith('var') ? '' : `background:${e.color};`;
-                const style = e.color.startsWith('var') ? `style="background:${e.color.replace('var(','').replace(')','')};opacity:0.85;color:#000"` : `style="background:${e.color};opacity:0.85;color:#000"`;
-                return `<div class="month-event-pill" style="background:${e.color};opacity:0.85;color:#060d14">${e.name}</div>`;
-            }).join('');
-            const extra = events.length > 3 ? `<div style="font-size:0.6rem;color:var(--text-dim);padding:1px 3px;">+${events.length-3}</div>` : '';
-            return `<div class="month-cell${otherMonth?' other-month':''}${isToday?' today-cell':''}">
-                <div class="month-cell-num">${date.getDate()}</div>
-                ${pills}${extra}
-            </div>`;
-        }
-        function changeMonth(dir) { monthOffset += dir; renderMainCalendar(); }
-
-        // ── CSV Import ────────────────────────────────────────────────────────
-        function openCsvImport() {
-            const sel = document.getElementById('csvSubjectTarget');
-            sel.innerHTML = '<option value="_external">→ Impegni Esterni</option>' +
-                Object.keys(data.subjects).map(s => `<option value="${s}">${s}</option>`).join('');
-            openModal('modalImportCsv');
-        }
-
-        function handleCsvFile(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = e => { document.getElementById('csvRaw').value = e.target.result; openCsvImport(); };
-            reader.readAsText(file);
-            event.target.value = '';
-        }
-
-        function importFromCsv() {
-            const raw = document.getElementById('csvRaw').value.trim();
-            const target = document.getElementById('csvSubjectTarget').value;
-            if (!raw) return;
-            const lines = raw.split('\n').filter(l => l.trim());
-            let imported = 0, errors = 0;
-            lines.forEach(line => {
-                const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
-                if (parts.length < 2) { errors++; return; }
-                const title = parts[0];
-                const dateRaw = parts[1];
-                let isoDate = '';
-                if (dateRaw.includes('/')) {
-                    const p = dateRaw.split('/');
-                    if (p.length === 3) isoDate = `${p[2].substring(0,4)}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
-                } else if (dateRaw.includes('-')) {
-                    isoDate = dateRaw.substring(0, 10);
-                }
-                if (!isoDate || !title) { errors++; return; }
-                if (target === '_external') {
-                    data.externalEvents.push({ title, date: isoDate });
-                } else if (data.subjects[target]) {
-                    data.subjects[target].topics.push({ id: Date.now().toString() + Math.random(), name: title, notes: '', next: isoDate, interval: 1, triage: 1, fails: 0 });
-                }
-                imported++;
-            });
-            save(); closeModal('modalImportCsv'); render();
-            showToast(`✓ Importati ${imported} eventi${errors ? `, ${errors} errori` : ''}`);
-        }
-
-        // ── Materia ───────────────────────────────────────────────────────────
-        function renderMateria(app) {
-            const sub = data.subjects[data.activeSub];
-            const examM = isExamMode(data.activeSub);
-            let countdownText = 'IMPOSTA DATA ESAME';
-            let cdClass = '';
-            if (sub.examDate) {
-                const today = new Date(); today.setHours(0,0,0,0);
-                const diff = Math.ceil((new Date(sub.examDate) - today) / (1000*60*60*24));
-                countdownText = diff > 0 ? `— ${diff} —` : 'ESAME RAGGIUNTO';
-                if (examM) cdClass = ' exam-mode';
-            }
-            const examBanner = examM ? `
-                <div class="exam-banner">
-                    <span class="exam-banner-text">🔴 MODALITÀ ESAME — solo priorità ESAME</span>
-                    <button class="exam-toggle-btn" onclick="toggleExamMode('${data.activeSub}')">DISATTIVA</button>
-                </div>` : '';
-            const examToggle = !examM ? `<button class="btn btn-exam" style="margin-bottom:12px;" onclick="toggleExamMode('${data.activeSub}')">🔴 ATTIVA MODALITÀ ESAME</button>` : '';
-
-            app.innerHTML = `
-                <div class="countdown-info${cdClass}" onclick="openModal('modalExamDate')">${countdownText}</div>
-                ${examBanner}
-                <button class="imprevisto-btn" onclick="applyImprevisto()">⚠ GESTISCI IMPREVISTO (+1 GIORNO)</button>
-                ${examToggle}
-                <div class="inner-nav">
-                    <div class="inner-nav-item" id="nav-study" onclick="setSubTab('study')">Studio</div>
-                    <div class="inner-nav-item" id="nav-ripasso" onclick="setSubTab('ripasso')">Ripasso</div>
-                    <div class="inner-nav-item" id="nav-calendar" onclick="setSubTab('calendar')">Agenda</div>
-                    <div class="inner-nav-item" id="nav-history" onclick="setSubTab('history')">Archivio</div>
-                    <div class="inner-nav-item exam-tab" id="nav-stats" onclick="setSubTab('stats')">Stat</div>
-                </div>
-                <div id="tabContent"></div>`;
-            setSubTab(data.activeTab || 'study');
-        }
-
-        function setSubTab(type) {
-            data.activeTab = type;
-            const sub = data.subjects[data.activeSub];
-            const target = document.getElementById('tabContent');
-            if (!target) return;
-            document.querySelectorAll('.inner-nav-item').forEach(i => i.classList.toggle('active', i.id === `nav-${type}`));
-
-            if (type === 'study') {
-                target.innerHTML = `<div class="card">
-                    <div class="section-label">Registrazione Studio</div>
-                    <div class="triage-box">
-                        <div class="t-dot ${data.triage==1?'active':''}" style="background:var(--success);color:#000" onclick="setTriage(1)">BASE</div>
-                        <div class="t-dot ${data.triage==2?'active':''}" style="background:var(--warning);color:#000" onclick="setTriage(2)">COMPLESSO</div>
-                        <div class="t-dot ${data.triage==3?'active':''}" style="background:var(--danger);color:#fff" onclick="setTriage(3)">ESAME</div>
-                    </div>
-                    <input type="text" id="inT" placeholder="Nome argomento">
-                    <textarea id="inN" placeholder="Note (opzionale)..."></textarea>
-                    <button class="btn btn-primary" onclick="addTopic()">PIANIFICA</button>
-                </div>`;
-
-            } else if (type === 'ripasso') {
-                const today = todayStr();
-                const examM = isExamMode(data.activeSub);
-                let due = sub.topics.filter(t => t.next <= today);
-                if (examM) due = due.filter(t => t.triage === 3);
-                target.innerHTML = '';
-                if (!due.length) {
-                    target.innerHTML = `<div class="card" style="text-align:center;padding:30px;">
-                        <div style="font-size:1.8rem;margin-bottom:8px;">✓</div>
-                        <div style="font-weight:700;color:var(--success);">Sessione completata</div>
-                        ${examM?'<div style="font-size:0.78rem;opacity:0.5;margin-top:8px;">Modalità esame attiva</div>':''}
-                    </div>`;
-                }
-                due.forEach(t => {
-                    const col = t.triage==3?'var(--danger)':(t.triage==2?'var(--warning)':sub.color);
-                    target.innerHTML += `<div class="ripasso-card" style="border-left-color:${col}">
-                        <div style="font-weight:700;font-size:1rem;color:${col};margin-bottom:4px;">${t.name}</div>
-                        <span class="notes-toggle" onclick="toggleNotes('${t.id}')">▸ Note</span>
-                        <div id="nb-${t.id}" class="notes-content hidden">
-                            <textarea id="nt-${t.id}">${t.notes||''}</textarea>
-                            <button class="btn btn-secondary" style="padding:8px;font-size:0.78rem;margin-top:6px;" onclick="saveNote('${t.id}')">SALVA</button>
-                        </div>
-                        <div class="rate-grid">
-                            <button class="rate-btn" style="background:rgba(255,255,255,0.06);color:var(--text-dim)" onclick="rate('${t.id}',1)">Non Noto</button>
-                            <button class="rate-btn" style="background:rgba(125,211,252,0.12);color:var(--primary)" onclick="rate('${t.id}',2)">Incerto</button>
-                            <button class="rate-btn" style="background:rgba(52,211,153,0.15);color:var(--success)" onclick="rate('${t.id}',3)">Acquisito</button>
-                        </div>
-                    </div>`;
-                });
-
-            } else if (type === 'calendar') {
-                target.innerHTML = `<div class="card">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                        <div class="gcal-arrow" onclick="changeSubWeek(-1)">❮</div>
-                        <div class="gcal-nav-label" id="subWeekDisplay">—</div>
-                        <div class="gcal-arrow" onclick="changeSubWeek(1)">❯</div>
-                    </div>
-                    <div id="subAgendaWeekly"></div>
-                </div>`;
-                renderSubWeek();
-
-            } else if (type === 'history') {
-                const examM = isExamMode(data.activeSub);
-                let topics = examM ? sub.topics.filter(t => t.triage===3) : sub.topics;
-                target.innerHTML = topics.length ? topics.map(t => `
-                    <div class="card">
-                        <div style="font-weight:700;margin-bottom:5px;">${t.name}</div>
-                        <div style="font-size:0.73rem;color:var(--text-dim);margin-bottom:11px;font-family:'Space Mono',monospace;">PROSSIMO: ${t.next.split('-').reverse().join('/')}</div>
-                        <div class="triage-box">
-                            <div class="t-dot ${t.triage==1?'active':''}" style="background:var(--success);color:#000" onclick="updateTriageInHistory('${t.id}',1)">BASE</div>
-                            <div class="t-dot ${t.triage==2?'active':''}" style="background:var(--warning);color:#000" onclick="updateTriageInHistory('${t.id}',2)">COMPLESSO</div>
-                            <div class="t-dot ${t.triage==3?'active':''}" style="background:var(--danger);color:#fff" onclick="updateTriageInHistory('${t.id}',3)">ESAME</div>
-                        </div>
-                        <div class="notes-toggle" onclick="toggleNotes('${t.id}')">▸ Note</div>
-                        <div id="nb-${t.id}" class="notes-content hidden">
-                            <textarea id="nt-${t.id}">${t.notes||''}</textarea>
-                            <button class="btn btn-secondary" style="padding:8px;font-size:0.78rem;margin-top:6px;" onclick="saveNote('${t.id}')">SALVA</button>
-                        </div>
-                        <div style="margin-top:11px;display:flex;justify-content:space-between;font-size:0.8rem;">
-                            <span style="color:var(--primary);cursor:pointer;" onclick="openDateModal('${t.id}')">Ripianifica →</span>
-                            <span style="color:var(--danger);cursor:pointer;" onclick="deleteTopic('${t.id}')">Elimina</span>
-                        </div>
-                    </div>`).join('') : `<div class="card" style="text-align:center;opacity:0.4;padding:28px;">Nessun argomento</div>`;
-
-            } else if (type === 'stats') {
-                renderStats(target, sub);
-            }
-        }
-
-        // Agenda materia singola
-        function renderSubWeek() {
-            const list = document.getElementById('subAgendaWeekly');
-            const lbl = document.getElementById('subWeekDisplay');
-            if (!list || !lbl) return;
-            const today = new Date(); today.setHours(0,0,0,0);
-            const dow = today.getDay()===0?7:today.getDay();
-            const monday = new Date(today); monday.setDate(today.getDate()-(dow-1)+(weekOffset*7));
-            lbl.textContent = `DAL ${monday.getDate()}/${monday.getMonth()+1}`;
-            list.innerHTML = '';
-            const todayISO = localDateStr(today);
-            const examM = isExamMode(data.activeSub);
-            const sub = data.subjects[data.activeSub];
-            for (let i = 0; i < 7; i++) {
-                const day = new Date(monday); day.setDate(monday.getDate()+i);
-                const dStr = localDateStr(day);
-                const isToday = dStr === todayISO;
-                let html = '';
-                sub.topics.forEach(t => {
-                    if (t.next !== dStr) return;
-                    if (examM && t.triage!==3) return;
-                    const col = t.triage==3?'var(--danger)':(t.triage==2?'var(--warning)':sub.color);
-                    html += `<div class="topic-card" style="border-left-color:${col}"><span class="topic-name" style="color:${col}">${t.name}</span></div>`;
-                });
-                list.innerHTML += `<div class="day-section">
-                    <div class="day-title${isToday?' today':''}">
-                        <span>${day.getDate()} ${day.toLocaleDateString('it-IT',{month:'short'}).toUpperCase()}</span>
-                        <span style="font-size:0.7rem;opacity:0.45;">${DOW_FULL[day.getDay()]}</span>
-                    </div>
-                    ${html||'<p class="gcal-no-events">nessuna attività</p>'}
-                </div>`;
-            }
-        }
-        function changeSubWeek(dir) { weekOffset += dir; renderSubWeek(); }
-
-        // ── Statistiche ───────────────────────────────────────────────────────
-        function renderStats(target, sub) {
-            const topics = sub.topics;
-            const total = topics.length;
-            if (!total) { target.innerHTML = `<div class="card" style="text-align:center;opacity:0.4;padding:28px;">Nessun argomento registrato</div>`; return; }
-            const today = todayStr();
-            const acquired = topics.filter(t => t.interval >= 8).length;
-            const uncertain = topics.filter(t => t.interval > 1 && t.interval < 8).length;
-            const critical = topics.filter(t => t.fails >= 2).length;
-            const dueToday = topics.filter(t => t.next <= today).length;
-            const examCount = topics.filter(t => t.triage === 3).length;
-            const pct = n => total ? Math.round((n/total)*100) : 0;
-            target.innerHTML = `
-                <div class="card">
-                    <div class="section-label">Panoramica</div>
-                    <div class="stat-grid">
-                        <div class="stat-box"><div class="stat-number" style="color:var(--text)">${total}</div><div class="stat-label">Totale</div></div>
-                        <div class="stat-box"><div class="stat-number" style="color:var(--warning)">${dueToday}</div><div class="stat-label">Da Ripassare</div></div>
-                        <div class="stat-box"><div class="stat-number" style="color:var(--success)">${acquired}</div><div class="stat-label">Acquisiti</div></div>
-                        <div class="stat-box"><div class="stat-number" style="color:var(--danger)">${critical}</div><div class="stat-label">Critici</div></div>
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="section-label">Distribuzione</div>
-                    ${[['Acquisiti',acquired,'var(--success)'],['In Apprendimento',uncertain,'var(--primary)'],['Priorità Esame',examCount,'var(--exam-color)'],['Critici ≥2 fallimenti',critical,'var(--danger)']].map(([label,n,col])=>`
-                    <div class="progress-bar-wrap">
-                        <div class="progress-label"><span>${label}</span><span>${n}/${total} (${pct(n)}%)</span></div>
-                        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct(n)}%;background:${col}"></div></div>
-                    </div>`).join('')}
-                </div>`;
-        }
-
-        // ── Export / Import DB ────────────────────────────────────────────────
-        function exportData() {
-            const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url;
-            a.download = `studyhub_backup_${todayStr()}.json`; a.click();
-            URL.revokeObjectURL(url); showToast('✓ Database esportato');
-        }
-        function handleImport(event) {
-            const file = event.target.files[0]; if (!file) return;
-            const reader = new FileReader();
-            reader.onload = e => {
-                try {
-                    const imported = JSON.parse(e.target.result);
-                    if (!imported.subjects) throw new Error();
-                    data = imported; save(); render(); showToast('✓ Database importato');
-                } catch { showToast('⚠ File non valido'); }
-            };
-            reader.readAsText(file); event.target.value = '';
-        }
-
-        // ── Cold Spots ────────────────────────────────────────────────────────
-        function renderColdSpots() {
-            const spots = [];
-            Object.keys(data.subjects).forEach(s => { data.subjects[s].topics.forEach(t => { if(t.fails>=2) spots.push({n:t.name,s,f:t.fails}); }); });
-            const sec = document.getElementById('coldSpotsSection');
-            if (sec && spots.length) {
-                sec.innerHTML = `<div class="cold-card">
-                    <div class="cold-title">⚠ Criticità rilevate</div>
-                    ${spots.map(x=>`<div class="cold-item"><span>${x.n} <span style="opacity:0.45;font-size:0.75rem;">(${x.s})</span></span><span style="color:var(--danger);font-family:'Space Mono',monospace;font-size:0.78rem;">${x.f}✕</span></div>`).join('')}
-                </div>`;
-            }
-        }
-
-        // ── Funzioni Core ─────────────────────────────────────────────────────
-        function addNewSubject() {
-            const val = document.getElementById('inSubName').value.trim(); if(!val) return;
-            data.subjects[val] = {topics:[], color:colors[Object.keys(data.subjects).length%colors.length], examDate:null, examModeManual:false};
-            save(); closeModal('modalNewSubject'); document.getElementById('inSubName').value=''; setView('subject',val);
-        }
-        function confirmExamDate() {
-            const val = document.getElementById('inExamDate').value; if(!val.includes('/')) return;
-            const p = val.split('/');
-            data.subjects[data.activeSub].examDate = `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
-            save(); closeModal('modalExamDate'); render();
-        }
-        function addTopic() {
-            const name = document.getElementById('inT').value.trim(); if(!name) return;
-            data.subjects[data.activeSub].topics.push({id:Date.now().toString(), name, notes:document.getElementById('inN').value, next:shiftDate(new Date(),1), interval:1, triage:data.triage, fails:0});
-            save(); setSubTab('study'); showToast('✓ Registrato');
-        }
-        function updateTriageInHistory(id,n) { data.subjects[data.activeSub].topics.find(x=>x.id===id).triage=n; save(); render(); }
-        function rate(id,q) {
-            const t = data.subjects[data.activeSub].topics.find(x=>x.id===id);
-            if(q===1){t.interval=1;t.fails=(t.fails||0)+1;}
-            else{t.interval=q===2?t.interval+3:t.interval+7;}
-            t.next=shiftDate(new Date(),t.interval); save(); render();
-        }
-        function openDateModal(id) { document.getElementById('editTopicId').value=id; openModal('modalEditDate'); }
-        function confirmManualDate() {
-            const id=document.getElementById('editTopicId').value, val=document.getElementById('inNewDate').value;
-            if(!val.includes('/')) return;
-            const p=val.split('/');
-            data.subjects[data.activeSub].topics.find(x=>x.id===id).next=`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
-            save(); closeModal('modalEditDate'); render();
-        }
-        function addExternalEvent() {
-            const title=document.getElementById('extTitle').value.trim(), d=document.getElementById('extDate').value;
-            if(!title||!d) return;
-            const p=d.split('/');
-            data.externalEvents.push({title, date:`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`});
-            save(); closeModal('modalExt'); render();
-        }
-        let _deleteTargetId=null;
-        function deleteTopic(id) {
-            _deleteTargetId=id;
-            document.getElementById('confirmDeleteBtn').onclick=()=>{
-                data.subjects[data.activeSub].topics=data.subjects[data.activeSub].topics.filter(x=>x.id!==_deleteTargetId);
-                save(); closeModal('modalConfirmDelete'); render();
-            };
-            openModal('modalConfirmDelete');
-        }
-        function setTriage(n){data.triage=n;setSubTab('study');}
-        function toggleNotes(id){document.getElementById(`nb-${id}`).classList.toggle('hidden');}
-        function saveNote(id){data.subjects[data.activeSub].topics.find(x=>x.id===id).notes=document.getElementById(`nt-${id}`).value;save();showToast('✓ Note salvate');}
-        function applyImprevisto(){
-            const today=todayStr();
-            data.subjects[data.activeSub].topics.forEach(t=>{if(t.next<=today)t.next=shiftDate(today,1);});
-            save();render();showToast('✓ Ripassi spostati di 1 giorno');
-        }
-
-        render();
-    </script>
-</body>
-</html>
+<!-- Modali -->
+<div id="modalNewSubject" class="modal-overlay hidden">
+    <div class="modal-card">
+        <div class="modal-title">NUOVA MATERIA</div>
+        <inpu

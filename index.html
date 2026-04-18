@@ -218,4 +218,951 @@
         .sync-btn.ok { color: var(--success); border-color: rgba(52,211,153,0.3); }
         .sync-btn.err { color: var(--danger); border-color: rgba(248,113,113,0.3); }
         .sync-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; }
-       
+        .sync-status-dot.connected { background: var(--success); }
+        .sync-status-dot.error { background: var(--danger); }
+        .sync-info-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--glass-border); margin-bottom: 12px; }
+        .sync-info-text { font-size: 0.75rem; color: var(--text-dim); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        @keyframes spin-sync { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        @keyframes toastin { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+        @keyframes toastout { from { opacity: 1; } to { opacity: 0; } }
+        @keyframes pulse-exam { 0%, 100% { box-shadow: 0 0 0 0 rgba(192,132,252,0); } 50% { box-shadow: 0 0 0 5px rgba(192,132,252,0.12); } }
+    </style>
+</head>
+<body>
+<div id="toast"></div>
+
+<div class="sidebar" id="subjectBar">
+    <div class="subject-tab active" id="globalBtn" onclick="setView('global')">Agenda</div>
+    <button class="sidebar-add-btn" onclick="openModal('modalNewSubject')">+</button>
+    <button class="sync-btn" id="syncBtn" onclick="syncNow()" style="margin-left:auto;" title="Sincronizza con Google Sheets">
+        <span id="syncDot" class="sync-status-dot"></span>
+        <span id="syncLabel">Sync</span>
+    </button>
+</div>
+
+<div id="appContent" class="container"></div>
+
+<!-- Modali -->
+<div id="modalNewSubject" class="modal-overlay hidden">
+    <div class="modal-card">
+        <div class="modal-title">NUOVA MATERIA</div>
+        <input type="text" id="inSubName" placeholder="Nome materia...">
+        <div class="modal-btns">
+            <button class="btn btn-primary" onclick="addNewSubject()">AGGIUNGI</button>
+            <button class="btn btn-secondary" onclick="closeModal('modalNewSubject')">ANNULLA</button>
+        </div>
+    </div>
+</div>
+<div id="modalExamDate" class="modal-overlay hidden">
+    <div class="modal-card">
+        <div class="modal-title">DATA ESAME</div>
+        <input type="text" id="inExamDate" placeholder="GG/MM/AAAA">
+        <div class="modal-btns">
+            <button class="btn btn-primary" onclick="confirmExamDate()">SALVA</button>
+            <button class="btn btn-secondary" onclick="closeModal('modalExamDate')">ANNULLA</button>
+        </div>
+    </div>
+</div>
+<div id="modalEditDate" class="modal-overlay hidden">
+    <div class="modal-card">
+        <div class="modal-title">RIPIANIFICA</div>
+        <input type="text" id="inNewDate" placeholder="GG/MM/AAAA">
+        <input type="hidden" id="editTopicId">
+        <div class="modal-btns">
+            <button class="btn btn-primary" onclick="confirmManualDate()">SALVA</button>
+            <button class="btn btn-secondary" onclick="closeModal('modalEditDate')">ANNULLA</button>
+        </div>
+    </div>
+</div>
+<div id="modalExt" class="modal-overlay hidden">
+    <div class="modal-card">
+        <div class="modal-title">AGGIUNGI IMPEGNO</div>
+        <input type="text" id="extTitle" placeholder="Descrizione...">
+        <input type="text" id="extDate" placeholder="GG/MM/AAAA">
+        <input type="time" id="extTime" placeholder="Orario (opzionale)">
+        <input type="text" id="extEndTime" placeholder="Orario fine (es. 10:30) — opzionale">
+        <div class="modal-btns">
+            <button class="btn btn-primary" onclick="addExternalEvent()">SALVA</button>
+            <button class="btn btn-secondary" onclick="closeModal('modalExt')">ANNULLA</button>
+        </div>
+    </div>
+</div>
+<div id="modalConfirmDelete" class="modal-overlay hidden">
+    <div class="modal-card" style="text-align:center;">
+        <div class="modal-title" style="color:var(--danger);">ELIMINARE?</div>
+        <p style="opacity:0.5;margin-bottom:18px;font-size:0.84rem;">Questa azione non è reversibile.</p>
+        <div class="modal-btns">
+            <button class="btn btn-danger-solid" id="confirmDeleteBtn">ELIMINA</button>
+            <button class="btn btn-secondary" onclick="closeModal('modalConfirmDelete')">ANNULLA</button>
+        </div>
+    </div>
+</div>
+<div id="modalImportCsv" class="modal-overlay hidden">
+    <div class="modal-card">
+        <div class="modal-title">IMPORTA DA CSV / EXCEL</div>
+        <div class="csv-help">
+            Formato colonne: <code>Titolo, Data (GG/MM/AAAA), Ora (HH:MM)</code> — ora opzionale.<br>
+            Da Google Calendar: <em>Impostazioni → Esporta</em>.<br>
+            Da Excel: <em>Salva come → CSV UTF-8</em>.
+        </div>
+        <textarea id="csvRaw" placeholder="Incolla qui il contenuto CSV..."></textarea>
+        <select class="styled-select" id="csvSubjectTarget"></select>
+        <div class="modal-btns">
+            <button class="btn btn-primary" onclick="importFromCsv()">IMPORTA</button>
+            <button class="btn btn-secondary" onclick="closeModal('modalImportCsv')">ANNULLA</button>
+        </div>
+    </div>
+</div>
+
+<div id="modalSync" class="modal-overlay hidden">
+    <div class="modal-card">
+        <div class="modal-title">☁ SINCRONIZZAZIONE</div>
+        <div id="syncModalBody"></div>
+    </div>
+</div>
+
+<input type="file" id="importFileInput" accept=".json" onchange="handleImport(event)">
+<input type="file" id="importCsvFileInput" accept=".csv" onchange="handleCsvFile(event)">
+
+<script>
+// ── Dati ────────────────────────────────────────────────────────────────────
+let data = JSON.parse(localStorage.getItem('multiSubjectDataV6')) || {
+    subjects:{}, isGlobal:true, activeSub:null,
+    triage:1, activeTab:'study', externalEvents:[],
+    globalView:'dayview', filterRipasso:true, filterEsterni:true
+};
+if (!data.globalView) data.globalView = 'dayview';
+if (data.filterRipasso === undefined) data.filterRipasso = true;
+if (data.filterEsterni === undefined) data.filterEsterni = true;
+
+let weekOffset = 0, selectedDayOffset = 0, monthOffset = 0;
+
+const colors = ['#7dd3fc','#34d399','#fbbf24','#f472b6','#f87171','#a78bfa'];
+const DOW_SHORT = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+const DOW_FULL  = ['DOMENICA','LUNEDÌ','MARTEDÌ','MERCOLEDÌ','GIOVEDÌ','VENERDÌ','SABATO'];
+const MONTHS_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+
+function save() { localStorage.setItem('multiSubjectDataV6', JSON.stringify(data)); }
+function showToast(msg) { const x=document.getElementById('toast'); x.innerHTML=msg; x.className='show'; setTimeout(()=>x.className='',3300); }
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function shiftDate(s,d) { let dt=new Date(s); dt.setDate(dt.getDate()+d); return localDateStr(dt); }
+function todayStr() { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; }
+function localDateStr(dt) { return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`; }
+function fmtDate(iso) { return iso.split('-').reverse().join('/'); }
+
+// ── Modalità Esame ───────────────────────────────────────────────────────────
+function isExamModeAuto(subName) {
+    const sub = data.subjects[subName]; if (!sub || !sub.examDate) return false;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const diff = Math.ceil((new Date(sub.examDate) - today) / (1000*60*60*24));
+    return diff > 0 && diff <= 7;
+}
+function isExamMode(subName) {
+    const sub = data.subjects[subName]; if (!sub) return false;
+    // Se era attivata manualmente ma ora è scaduto il sette giorni,
+    // lasciamo che il toggle manuale prevalga sempre
+    return sub.examModeManual || isExamModeAuto(subName);
+}
+function toggleExamMode(subName) {
+    const sub = data.subjects[subName];
+    // Se è in modalità auto (≤7gg) e non era manuale, attivare manuale=false lo DISATTIVA
+    // Se era manuale=true, lo disattiva; se era false, lo attiva
+    if (isExamModeAuto(subName) && !sub.examModeManual) {
+        // auto attiva → forziamo override manuale = "disattiva"
+        sub.examModeManual = false;
+        sub.examModeOverride = true; // override: disattivata manualmente anche se auto
+    } else if (sub.examModeOverride) {
+        // rimuovi override
+        sub.examModeOverride = false;
+        sub.examModeManual = false;
+    } else {
+        sub.examModeManual = !sub.examModeManual;
+        sub.examModeOverride = false;
+    }
+    save(); render();
+}
+function isExamModeFinal(subName) {
+    const sub = data.subjects[subName]; if (!sub) return false;
+    if (sub.examModeOverride) return false;
+    return sub.examModeManual || isExamModeAuto(subName);
+}
+
+// ── Navigazione ──────────────────────────────────────────────────────────────
+function setView(view, sub=null) {
+    data.isGlobal=(view==='global'); data.activeSub=sub;
+    weekOffset=0; selectedDayOffset=0; monthOffset=0;
+    save(); render();
+}
+
+function render() {
+    const bar = document.getElementById('subjectBar');
+    bar.querySelectorAll('.subject-tab:not(#globalBtn)').forEach(e=>e.remove());
+    document.getElementById('globalBtn').classList.toggle('active', data.isGlobal);
+    Object.keys(data.subjects).forEach(name => {
+        const btn = document.createElement('div');
+        const isActive = !data.isGlobal && data.activeSub===name;
+        const examM = isExamModeFinal(name);
+        btn.className = `subject-tab${isActive?' active':''}${isActive&&examM?' exam-mode-active':''}`;
+        btn.textContent = name + (examM?' 🔴':'');
+        btn.onclick = ()=>setView('subject',name);
+        bar.insertBefore(btn, bar.children[bar.children.length-1]);
+    });
+    const app = document.getElementById('appContent');
+    if (data.isGlobal) renderGlobal(app); else renderMateria(app);
+}
+
+// ── Vista Globale ────────────────────────────────────────────────────────────
+function renderGlobal(target) {
+    const v = data.globalView||'dayview';
+    target.innerHTML = `
+        <div class="view-toggle">
+            <div class="view-btn${v==='dayview'?' active':''}" onclick="setGlobalView('dayview')">Giorno</div>
+            <div class="view-btn${v==='week'?' active':''}" onclick="setGlobalView('week')">Settimana</div>
+            <div class="view-btn${v==='month'?' active':''}" onclick="setGlobalView('month')">Mese</div>
+        </div>
+        <div class="filter-bar">
+            <div class="filter-chip chip-ripasso${data.filterRipasso?' on':''}" onclick="toggleFilter('ripasso')">● Ripassi</div>
+            <div class="filter-chip chip-esterni${data.filterEsterni?' on':''}" onclick="toggleFilter('esterni')">● Impegni</div>
+            <div style="margin-left:auto;">
+                <button class="btn btn-secondary btn-icon" onclick="openModal('modalExt')">+ Impegno</button>
+            </div>
+        </div>
+        <div id="mainCalendarArea"></div>
+        <div id="coldSpotsSection"></div>
+        <div class="card" style="margin-top:4px;">
+            <div class="section-label" style="margin-bottom:13px;">Database</div>
+            <div class="db-actions" style="margin-bottom:8px;">
+                <button class="btn btn-secondary" onclick="openSyncModal()">☁ Configura Sync</button>
+            </div>
+            <div class="db-actions" style="margin-bottom:8px;">
+                <button class="btn btn-secondary" onclick="document.getElementById('importFileInput').click()">⬆ Importa Database</button>
+                <button class="btn btn-secondary" onclick="exportData()">⬇ Esporta Database</button>
+            </div>
+            <div class="db-actions" style="margin-bottom:8px;">
+                <button class="btn btn-secondary" onclick="openCsvImport()">📅 Importa da CSV / Excel</button>
+            </div>
+            <div id="appsScriptSection">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;">
+                    <span class="section-label" style="margin:0;">Script Apps Script</span>
+                    <span style="font-size:0.7rem;color:var(--primary);cursor:pointer;" onclick="toggleScriptBox()">mostra / nascondi</span>
+                </div>
+                <div id="scriptBox" class="hidden" style="margin-top:10px;">
+                    <div class="csv-help" style="margin-bottom:8px;">Copia questo script su <a href="https://script.google.com" target="_blank" style="color:var(--primary)">script.google.com</a>, distribuiscilo come App Web con accesso <em>Chiunque</em>, poi incolla l'URL in "Configura Sync".</div>
+                    <textarea readonly onclick="this.select()" style="font-family:'Space Mono',monospace;font-size:0.65rem;min-height:180px;color:var(--text-dim);cursor:text;">const SHEET_NAME = 'StudyHub';
+
+function doGet(e) {
+  if (e.parameter.action === 'read') {
+    const sheet = getSheet();
+    const val = sheet.getRange('A1').getValue();
+    const json = val ? val : '{}';
+    return ContentService.createTextOutput(json)
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  return ContentService.createTextOutput('{"error":"unknown action"}')
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  try {
+    const sheet = getSheet();
+    const body = e.postData.contents;
+    JSON.parse(body); // validazione
+    sheet.getRange('A1').setValue(body);
+    return ContentService.createTextOutput('{"ok":true}')
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService.createTextOutput('{"error":"' + err.message + '"}')
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function getSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) sheet = ss.insertSheet(SHEET_NAME);
+  return sheet;
+}</textarea>
+                </div>
+            </div>
+        </div>`;
+    renderMainCalendar();
+    renderColdSpots();
+}
+
+function setGlobalView(v) { data.globalView=v; weekOffset=0; selectedDayOffset=0; monthOffset=0; save(); renderGlobal(document.getElementById('appContent')); }
+
+function toggleFilter(f) {
+    if (f==='ripasso') data.filterRipasso=!data.filterRipasso;
+    else data.filterEsterni=!data.filterEsterni;
+    save(); renderMainCalendar();
+    document.querySelectorAll('.filter-chip').forEach(c=>{
+        if(c.classList.contains('chip-ripasso')) c.classList.toggle('on',data.filterRipasso);
+        if(c.classList.contains('chip-esterni')) c.classList.toggle('on',data.filterEsterni);
+    });
+}
+
+function renderMainCalendar() {
+    const area = document.getElementById('mainCalendarArea'); if(!area) return;
+    if (data.globalView==='dayview') renderDayView(area);
+    else if (data.globalView==='week') renderWeekList(area);
+    else renderMonthView(area);
+}
+
+// Raccoglie eventi per una data, ordinati per orario
+function getEventsForDate(dStr) {
+    const events = [];
+    if (data.filterRipasso) {
+        Object.keys(data.subjects).forEach(s => {
+            const examM = isExamModeFinal(s);
+            data.subjects[s].topics.forEach(t => {
+                if (t.next!==dStr) return;
+                if (examM && t.triage!==3) return;
+                const col = t.triage==3?'var(--danger)':(t.triage==2?'var(--warning)':data.subjects[s].color);
+                events.push({type:'ripasso', name:t.name, subject:s, color:col, time:null});
+            });
+        });
+    }
+    if (data.filterEsterni) {
+        (data.externalEvents||[]).forEach(e => {
+            if (e.date===dStr) events.push({type:'external', name:e.title, color:'var(--warning)', time:e.time||null, endTime:e.endTime||null});
+        });
+    }
+    // Ordina: eventi con orario prima (per orario), poi senza orario
+    events.sort((a,b) => {
+        if (a.time && b.time) return a.time.localeCompare(b.time);
+        if (a.time && !b.time) return -1;
+        if (!a.time && b.time) return 1;
+        return 0;
+    });
+    return events;
+}
+
+// ── Day View ─────────────────────────────────────────────────────────────────
+function renderDayView(area) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const dow = today.getDay()===0?7:today.getDay();
+    const monday = new Date(today); monday.setDate(today.getDate()-(dow-1)+(weekOffset*7));
+    const days = [];
+    for (let i=0;i<7;i++) { const d=new Date(monday); d.setDate(monday.getDate()+i); days.push(d); }
+    const selIdx = Math.max(0,Math.min(6,selectedDayOffset));
+    const selDay = days[selIdx];
+    const selStr = localDateStr(selDay);
+    const todayISO = localDateStr(today);
+    const dotsByDay = days.map(d=>getEventsForDate(localDateStr(d)));
+
+    area.innerHTML = `
+        <div class="gcal-wrapper">
+            <div class="gcal-nav">
+                <div class="gcal-arrow" onclick="changeDayWeek(-1)">❮</div>
+                <div class="gcal-nav-label">${MONTHS_IT[monday.getMonth()]} ${monday.getFullYear()}</div>
+                <div class="gcal-arrow" onclick="changeDayWeek(1)">❯</div>
+            </div>
+            <div class="gcal-weekstrip">
+                ${days.map((d,i)=>{
+                    const dStr=localDateStr(d), isT=dStr===todayISO, isSel=i===selIdx;
+                    const dotHtml=dotsByDay[i].slice(0,4).map(e=>`<div class="gcal-dot" style="background:${e.color}"></div>`).join('');
+                    return `<div class="gcal-day-btn${isSel?' selected':''}${isT?' today-marker':''}" onclick="selectDay(${i})">
+                        <span class="dow">${DOW_SHORT[d.getDay()]}</span>
+                        <div class="dom">${d.getDate()}</div>
+                        <div class="dot-row">${dotHtml}</div>
+                    </div>`;
+                }).join('')}
+            </div>
+            <div class="gcal-day-events">
+                <div class="gcal-date-header">${selDay.getDate()} ${MONTHS_IT[selDay.getMonth()]} — ${DOW_FULL[selDay.getDay()]}</div>
+                ${renderEventCards(selStr)}
+            </div>
+        </div>`;
+}
+
+function renderEventCards(dStr) {
+    const events = getEventsForDate(dStr);
+    if (!events.length) return '<div class="gcal-no-events">Nessuna attività</div>';
+    return events.map(e=>`
+        <div class="topic-card${e.type==='external'?' external-event':''}" style="border-left-color:${e.color}">
+            ${e.time ? `<span class="topic-time">${e.time}${e.endTime?' – '+e.endTime:''}</span>` : ''}
+            <span class="topic-name" style="color:${e.color}">${e.name}</span>
+            ${e.subject?`<span class="subject-label">${e.subject}</span>`:''}
+        </div>`).join('');
+}
+
+function changeDayWeek(dir) { weekOffset+=dir; selectedDayOffset=0; renderMainCalendar(); }
+function selectDay(idx) { selectedDayOffset=idx; renderMainCalendar(); }
+
+// ── Week List ────────────────────────────────────────────────────────────────
+function renderWeekList(area) {
+    const today=new Date(); today.setHours(0,0,0,0);
+    const dow=today.getDay()===0?7:today.getDay();
+    const monday=new Date(today); monday.setDate(today.getDate()-(dow-1)+(weekOffset*7));
+    const todayISO=localDateStr(today);
+    let html=`<div class="gcal-wrapper">
+        <div class="gcal-nav">
+            <div class="gcal-arrow" onclick="changeWeekList(-1)">❮</div>
+            <div class="gcal-nav-label">DAL ${monday.getDate()}/${monday.getMonth()+1}</div>
+            <div class="gcal-arrow" onclick="changeWeekList(1)">❯</div>
+        </div>
+        <div style="padding:12px 14px;">`;
+    for (let i=0;i<7;i++) {
+        const day=new Date(monday); day.setDate(monday.getDate()+i);
+        const dStr=localDateStr(day), isT=dStr===todayISO;
+        const events=getEventsForDate(dStr);
+        const evHtml=events.map(e=>`
+            <div class="topic-card${e.type==='external'?' external-event':''}" style="border-left-color:${e.color}">
+                ${e.time?`<span class="topic-time">${e.time}${e.endTime?' – '+e.endTime:''}</span>`:''}
+                <span class="topic-name" style="color:${e.color}">${e.name}</span>
+                ${e.subject?`<span class="subject-label">${e.subject}</span>`:''}
+            </div>`).join('');
+        html+=`<div class="day-section">
+            <div class="day-title${isT?' today':''}">
+                <span>${day.getDate()} ${day.toLocaleDateString('it-IT',{month:'short'}).toUpperCase()}</span>
+                <span style="font-size:0.68rem;opacity:0.42;">${DOW_FULL[day.getDay()]}</span>
+            </div>
+            ${evHtml||'<p class="gcal-no-events">nessuna attività</p>'}
+        </div>`;
+    }
+    html+='</div></div>';
+    area.innerHTML=html;
+}
+function changeWeekList(dir){weekOffset+=dir;renderMainCalendar();}
+
+// ── Month View ───────────────────────────────────────────────────────────────
+function renderMonthView(area) {
+    const today=new Date(); today.setHours(0,0,0,0);
+    const base=new Date(today.getFullYear(), today.getMonth()+monthOffset, 1);
+    const year=base.getFullYear(), month=base.getMonth();
+    const todayISO=localDateStr(today);
+    const firstDow=base.getDay()===0?7:base.getDay();
+    const daysInMonth=new Date(year,month+1,0).getDate();
+    let cells='';
+    for (let i=1;i<firstDow;i++) { const d=new Date(year,month,1-(firstDow-i)); cells+=monthCell(d,localDateStr(d),todayISO,true); }
+    for (let d=1;d<=daysInMonth;d++) { const dt=new Date(year,month,d); cells+=monthCell(dt,localDateStr(dt),todayISO,false); }
+    const total=(firstDow-1)+daysInMonth, rem=total%7===0?0:7-(total%7);
+    for (let i=1;i<=rem;i++) { const dt=new Date(year,month+1,i); cells+=monthCell(dt,localDateStr(dt),todayISO,true); }
+    area.innerHTML=`<div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div class="gcal-arrow" onclick="changeMonth(-1)">❮</div>
+            <div class="gcal-nav-label">${MONTHS_IT[month].toUpperCase()} ${year}</div>
+            <div class="gcal-arrow" onclick="changeMonth(1)">❯</div>
+        </div>
+        <div class="month-dow-header">${['L','M','M','G','V','S','D'].map(d=>`<div class="month-dow-label">${d}</div>`).join('')}</div>
+        <div class="month-grid">${cells}</div>
+    </div>`;
+}
+function monthCell(date,dStr,todayISO,other) {
+    const isT=dStr===todayISO, events=getEventsForDate(dStr);
+    // Ordina per ora e posa le pill
+    const pills=events.slice(0,3).map(e=>{
+        const label=e.time?`${e.time} ${e.name}`:e.name;
+        return `<div class="month-event-pill" style="background:${e.color}">${label}</div>`;
+    }).join('');
+    const extra=events.length>3?`<div style="font-size:0.55rem;color:var(--text-dim);text-align:center;">+${events.length-3}</div>`:'';
+    return `<div class="month-cell${other?' other-month':''}${isT?' today-cell':''}">
+        <div class="month-cell-num">${date.getDate()}</div>
+        ${pills}${extra}
+    </div>`;
+}
+function changeMonth(dir){monthOffset+=dir;renderMainCalendar();}
+
+// ── CSV Import ───────────────────────────────────────────────────────────────
+function openCsvImport() {
+    const sel=document.getElementById('csvSubjectTarget');
+    sel.innerHTML='<option value="_external">→ Impegni Esterni</option>'+
+        Object.keys(data.subjects).map(s=>`<option value="${s}">${s}</option>`).join('');
+    openModal('modalImportCsv');
+}
+function handleCsvFile(event) {
+    const file=event.target.files[0]; if(!file) return;
+    const r=new FileReader(); r.onload=e=>{document.getElementById('csvRaw').value=e.target.result;openCsvImport();};
+    r.readAsText(file); event.target.value='';
+}
+function importFromCsv() {
+    const raw=document.getElementById('csvRaw').value.trim();
+    const target=document.getElementById('csvSubjectTarget').value;
+    if(!raw) return;
+    const lines=raw.split('\n').filter(l=>l.trim());
+    let imported=0, errors=0;
+    lines.forEach(line=>{
+        const parts=line.split(',').map(p=>p.trim().replace(/^"|"$/g,''));
+        if(parts.length<2){errors++;return;}
+        const title=parts[0];
+        const dateRaw=parts[1];
+        const timeRaw=parts[2]||''; // colonna ora opzionale
+        let isoDate='', time='';
+        if(dateRaw.includes('/')) { const p=dateRaw.split('/'); if(p.length===3) isoDate=`${p[2].substring(0,4)}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`; }
+        else if(dateRaw.includes('-')) isoDate=dateRaw.substring(0,10);
+        if(timeRaw.match(/^\d{1,2}:\d{2}/)) time=timeRaw.substring(0,5);
+        if(!isoDate||!title){errors++;return;}
+        if(target==='_external') data.externalEvents.push({title, date:isoDate, time:time||null});
+        else if(data.subjects[target]) data.subjects[target].topics.push({id:Date.now().toString()+Math.random(), name:title, notes:'', next:isoDate, interval:1, triage:1, fails:0, repeats:0});
+        imported++;
+    });
+    save(); closeModal('modalImportCsv'); render();
+    showToast(`✓ Importati ${imported} eventi${errors?`, ${errors} errori`:''}`);
+}
+
+// ── Materia ──────────────────────────────────────────────────────────────────
+function renderMateria(app) {
+    const sub=data.subjects[data.activeSub];
+    const examM=isExamModeFinal(data.activeSub);
+    const autoM=isExamModeAuto(data.activeSub);
+    let cdText='IMPOSTA DATA ESAME', cdClass='';
+    if(sub.examDate){
+        const today=new Date();today.setHours(0,0,0,0);
+        const diff=Math.ceil((new Date(sub.examDate)-today)/(1000*60*60*24));
+        cdText=diff>0?`— ${diff} —`:'ESAME RAGGIUNTO';
+        if(examM) cdClass=' exam-mode';
+    }
+    const examBanner=examM?`
+        <div class="exam-banner">
+            <span class="exam-banner-text">🔴 MODALITÀ ESAME — solo priorità ESAME</span>
+            <button class="exam-toggle-btn" onclick="toggleExamMode('${data.activeSub}')">DISATTIVA</button>
+        </div>`:'';
+    const examToggle=!examM?`<button class="btn btn-exam" style="margin-bottom:11px;" onclick="toggleExamMode('${data.activeSub}')">🔴 ATTIVA MODALITÀ ESAME</button>`:'';
+
+    app.innerHTML=`
+        <div class="countdown-info${cdClass}" onclick="openModal('modalExamDate')">${cdText}</div>
+        ${examBanner}
+        <button class="imprevisto-btn" onclick="applyImprevisto()">⚠ GESTISCI IMPREVISTO (+1 GIORNO)</button>
+        ${examToggle}
+        <div class="inner-nav">
+            <div class="inner-nav-item" id="nav-study" onclick="setSubTab('study')">Studio</div>
+            <div class="inner-nav-item" id="nav-ripasso" onclick="setSubTab('ripasso')">Ripasso</div>
+            <div class="inner-nav-item" id="nav-calendar" onclick="setSubTab('calendar')">Agenda</div>
+            <div class="inner-nav-item" id="nav-history" onclick="setSubTab('history')">Archivio</div>
+            <div class="inner-nav-item exam-tab" id="nav-stats" onclick="setSubTab('stats')">Stat</div>
+        </div>
+        <div id="tabContent"></div>`;
+    setSubTab(data.activeTab||'study');
+}
+
+function setSubTab(type) {
+    data.activeTab=type;
+    const sub=data.subjects[data.activeSub];
+    const target=document.getElementById('tabContent'); if(!target) return;
+    document.querySelectorAll('.inner-nav-item').forEach(i=>i.classList.toggle('active',i.id===`nav-${type}`));
+
+    if(type==='study') {
+        target.innerHTML=`<div class="card">
+            <div class="section-label">Registrazione Studio</div>
+            <div class="triage-box">
+                <div class="t-dot ${data.triage==1?'active':''}" style="background:var(--success);color:#000" onclick="setTriage(1)">BASE</div>
+                <div class="t-dot ${data.triage==2?'active':''}" style="background:var(--warning);color:#000" onclick="setTriage(2)">COMPLESSO</div>
+                <div class="t-dot ${data.triage==3?'active':''}" style="background:var(--danger);color:#fff" onclick="setTriage(3)">ESAME</div>
+            </div>
+            <input type="text" id="inT" placeholder="Nome argomento">
+            <textarea id="inN" placeholder="Note (opzionale)..."></textarea>
+            <button class="btn btn-primary" onclick="addTopic()">PIANIFICA</button>
+        </div>`;
+
+    } else if(type==='ripasso') {
+        const today=todayStr();
+        const examM=isExamModeFinal(data.activeSub);
+        let due=sub.topics.filter(t=>t.next<=today);
+        if(examM) due=due.filter(t=>t.triage===3);
+        target.innerHTML='';
+        if(!due.length){
+            target.innerHTML=`<div class="card" style="text-align:center;padding:28px;">
+                <div style="font-size:1.6rem;margin-bottom:8px;">✓</div>
+                <div style="font-weight:700;color:var(--success);font-size:0.95rem;">Sessione completata</div>
+                ${examM?'<div style="font-size:0.75rem;opacity:0.45;margin-top:6px;">Modalità esame attiva</div>':''}
+            </div>`;
+        }
+        due.forEach(t=>{
+            const col=t.triage==3?'var(--danger)':(t.triage==2?'var(--warning)':sub.color);
+            const repeats=t.repeats||0;
+            const repLabel=repeats>0?`<span style="font-size:0.7rem;opacity:0.5;margin-left:8px;">Ripeti: ${repeats}✕</span>`:'';
+            target.innerHTML+=`<div class="ripasso-card" style="border-left-color:${col}">
+                <div style="font-weight:700;font-size:0.98rem;color:${col};margin-bottom:3px;">${t.name}${repLabel}</div>
+                <span class="notes-toggle" onclick="toggleNotes('${t.id}')">▸ Note</span>
+                <div id="nb-${t.id}" class="notes-content hidden">
+                    <textarea id="nt-${t.id}">${t.notes||''}</textarea>
+                    <button class="btn btn-secondary" style="padding:7px;font-size:0.75rem;margin-top:6px;" onclick="saveNote('${t.id}')">SALVA</button>
+                </div>
+                <div class="rate-grid">
+                    <button class="rate-btn" style="background:rgba(248,113,113,0.12);color:var(--danger)" onclick="rate('${t.id}','ripeti')">
+                        Ripeti
+                        <span class="rate-sub">rimane oggi</span>
+                    </button>
+                    <button class="rate-btn" style="background:rgba(255,255,255,0.06);color:var(--text-dim)" onclick="rate('${t.id}','incerto')">
+                        Incerto
+                        <span class="rate-sub">+3 giorni</span>
+                    </button>
+                    <button class="rate-btn" style="background:rgba(125,211,252,0.1);color:var(--primary)" onclick="rate('${t.id}','consolida')">
+                        Da consolidare
+                        <span class="rate-sub">+${Math.max(1,t.interval||1)+3} gg</span>
+                    </button>
+                    <button class="rate-btn" style="background:rgba(52,211,153,0.12);color:var(--success)" onclick="rate('${t.id}','buono')">
+                        Buono
+                        <span class="rate-sub">+7 giorni</span>
+                    </button>
+                </div>
+            </div>`;
+        });
+
+    } else if(type==='calendar') {
+        target.innerHTML=`<div class="gcal-wrapper">
+            <div class="gcal-nav">
+                <div class="gcal-arrow" onclick="changeSubWeek(-1)">❮</div>
+                <div class="gcal-nav-label" id="subWeekDisplay">—</div>
+                <div class="gcal-arrow" onclick="changeSubWeek(1)">❯</div>
+            </div>
+            <div id="subAgendaWeekly" style="padding:0 14px 12px;"></div>
+        </div>`;
+        renderSubWeek();
+
+    } else if(type==='history') {
+        const examM=isExamModeFinal(data.activeSub);
+        let topics=examM?sub.topics.filter(t=>t.triage===3):sub.topics;
+        target.innerHTML=topics.length?topics.map(t=>`
+            <div class="card">
+                <div style="font-weight:700;margin-bottom:4px;">${t.name}</div>
+                <div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:10px;font-family:'Space Mono',monospace;">
+                    PROSSIMO: ${fmtDate(t.next)}
+                    ${(t.repeats||0)>0?`<span style="margin-left:10px;color:var(--danger);">Ripetuto ${t.repeats}✕</span>`:''}
+                </div>
+                <div class="triage-box">
+                    <div class="t-dot ${t.triage==1?'active':''}" style="background:var(--success);color:#000" onclick="updateTriageInHistory('${t.id}',1)">BASE</div>
+                    <div class="t-dot ${t.triage==2?'active':''}" style="background:var(--warning);color:#000" onclick="updateTriageInHistory('${t.id}',2)">COMPLESSO</div>
+                    <div class="t-dot ${t.triage==3?'active':''}" style="background:var(--danger);color:#fff" onclick="updateTriageInHistory('${t.id}',3)">ESAME</div>
+                </div>
+                <div class="notes-toggle" onclick="toggleNotes('${t.id}')">▸ Note</div>
+                <div id="nb-${t.id}" class="notes-content hidden">
+                    <textarea id="nt-${t.id}">${t.notes||''}</textarea>
+                    <button class="btn btn-secondary" style="padding:7px;font-size:0.75rem;margin-top:6px;" onclick="saveNote('${t.id}')">SALVA</button>
+                </div>
+                <div style="margin-top:10px;display:flex;justify-content:space-between;font-size:0.78rem;">
+                    <span style="color:var(--primary);cursor:pointer;" onclick="openDateModal('${t.id}')">Ripianifica →</span>
+                    <span style="color:var(--danger);cursor:pointer;" onclick="deleteTopic('${t.id}')">Elimina</span>
+                </div>
+            </div>`).join(''):`<div class="card" style="text-align:center;opacity:0.35;padding:26px;">Nessun argomento</div>`;
+
+    } else if(type==='stats') {
+        renderStats(target,sub);
+    }
+}
+
+// Agenda materia (week)
+function renderSubWeek() {
+    const list=document.getElementById('subAgendaWeekly');
+    const lbl=document.getElementById('subWeekDisplay');
+    if(!list||!lbl) return;
+    const today=new Date(); today.setHours(0,0,0,0);
+    const dow=today.getDay()===0?7:today.getDay();
+    const monday=new Date(today); monday.setDate(today.getDate()-(dow-1)+(weekOffset*7));
+    lbl.textContent=`DAL ${monday.getDate()}/${monday.getMonth()+1}`;
+    const todayISO=localDateStr(today);
+    const examM=isExamModeFinal(data.activeSub);
+    const sub=data.subjects[data.activeSub];
+    let html='';
+    for(let i=0;i<7;i++){
+        const day=new Date(monday); day.setDate(monday.getDate()+i);
+        const dStr=localDateStr(day), isT=dStr===todayISO;
+        let evHtml='';
+        sub.topics.forEach(t=>{
+            if(t.next!==dStr) return;
+            if(examM&&t.triage!==3) return;
+            const col=t.triage==3?'var(--danger)':(t.triage==2?'var(--warning)':sub.color);
+            evHtml+=`<div class="topic-card" style="border-left-color:${col}"><span class="topic-name" style="color:${col}">${t.name}</span></div>`;
+        });
+        html+=`<div class="day-section">
+            <div class="day-title${isT?' today':''}">
+                <span>${day.getDate()} ${day.toLocaleDateString('it-IT',{month:'short'}).toUpperCase()}</span>
+                <span style="font-size:0.65rem;opacity:0.4;">${DOW_FULL[day.getDay()]}</span>
+            </div>
+            ${evHtml||'<p class="gcal-no-events">nessuna attività</p>'}
+        </div>`;
+    }
+    list.innerHTML=html;
+}
+function changeSubWeek(dir){weekOffset+=dir;renderSubWeek();}
+
+// ── Statistiche ──────────────────────────────────────────────────────────────
+function renderStats(target,sub) {
+    const topics=sub.topics, total=topics.length;
+    if(!total){target.innerHTML=`<div class="card" style="text-align:center;opacity:0.35;padding:26px;">Nessun argomento registrato</div>`;return;}
+    const today=todayStr();
+    const acquired=topics.filter(t=>t.interval>=8).length;
+    const uncertain=topics.filter(t=>t.interval>1&&t.interval<8).length;
+    // Critici: argomenti con ≥2 "Ripeti" (campo repeats)
+    const critical=topics.filter(t=>(t.repeats||0)>=2).length;
+    const dueToday=topics.filter(t=>t.next<=today).length;
+    const examCount=topics.filter(t=>t.triage===3).length;
+    const pct=n=>total?Math.round((n/total)*100):0;
+    target.innerHTML=`
+        <div class="card">
+            <div class="section-label">Panoramica</div>
+            <div class="stat-grid">
+                <div class="stat-box"><div class="stat-number" style="color:var(--text)">${total}</div><div class="stat-label">Totale</div></div>
+                <div class="stat-box"><div class="stat-number" style="color:var(--warning)">${dueToday}</div><div class="stat-label">Da Ripassare</div></div>
+                <div class="stat-box"><div class="stat-number" style="color:var(--success)">${acquired}</div><div class="stat-label">Acquisiti</div></div>
+                <div class="stat-box"><div class="stat-number" style="color:var(--danger)">${critical}</div><div class="stat-label">Critici</div></div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="section-label">Distribuzione</div>
+            ${[['Buono (acquisiti)',acquired,'var(--success)'],
+               ['In consolidamento',uncertain,'var(--primary)'],
+               ['Priorità Esame',examCount,'var(--exam-color)'],
+               ['Critici (≥2 Ripeti)',critical,'var(--danger)']
+              ].map(([label,n,col])=>`
+            <div class="progress-bar-wrap">
+                <div class="progress-label"><span>${label}</span><span>${n}/${total} (${pct(n)}%)</span></div>
+                <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct(n)}%;background:${col}"></div></div>
+            </div>`).join('')}
+        </div>`;
+}
+
+// ── rate (nuovo sistema 4 tasti) ─────────────────────────────────────────────
+// Ripeti   → non sposta la data, incrementa t.repeats
+// Incerto  → +3 giorni (sposta da oggi, non dal next)
+// Consolida → interval attuale + 3 giorni
+// Buono    → +7 giorni
+function rate(id, q) {
+    const t=data.subjects[data.activeSub].topics.find(x=>x.id===id);
+    if(!t) return;
+    if(q==='ripeti') {
+        t.repeats=(t.repeats||0)+1;
+        // NON si modifica t.next → rimane nella lista di oggi
+    } else if(q==='incerto') {
+        t.interval=3;
+        t.next=shiftDate(todayStr(),3);
+    } else if(q==='consolida') {
+        t.interval=Math.max(1,t.interval||1)+3;
+        t.next=shiftDate(todayStr(),t.interval);
+    } else if(q==='buono') {
+        t.interval=(t.interval||1)+7;
+        t.next=shiftDate(todayStr(),t.interval);
+    }
+    save(); render();
+}
+
+// ── Export / Import ──────────────────────────────────────────────────────────
+function exportData() {
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url;
+    a.download=`studyhub_backup_${todayStr()}.json`; a.click();
+    URL.revokeObjectURL(url); showToast('✓ Database esportato');
+}
+function handleImport(event) {
+    const file=event.target.files[0]; if(!file) return;
+    const r=new FileReader();
+    r.onload=e=>{
+        try{ const imp=JSON.parse(e.target.result); if(!imp.subjects) throw 0; data=imp; save(); render(); showToast('✓ Database importato'); }
+        catch{ showToast('⚠ File non valido'); }
+    };
+    r.readAsText(file); event.target.value='';
+}
+
+// ── Cold Spots ───────────────────────────────────────────────────────────────
+function renderColdSpots() {
+    const spots=[];
+    Object.keys(data.subjects).forEach(s=>{data.subjects[s].topics.forEach(t=>{if((t.repeats||0)>=2) spots.push({n:t.name,s,f:t.repeats});});});
+    const sec=document.getElementById('coldSpotsSection');
+    if(sec&&spots.length){
+        sec.innerHTML=`<div class="cold-card">
+            <div class="cold-title">⚠ Criticità rilevate</div>
+            ${spots.map(x=>`<div class="cold-item"><span>${x.n} <span style="opacity:0.4;font-size:0.72rem;">(${x.s})</span></span><span style="color:var(--danger);font-family:'Space Mono',monospace;font-size:0.75rem;">${x.f}✕</span></div>`).join('')}
+        </div>`;
+    }
+}
+
+// ── Funzioni Core ────────────────────────────────────────────────────────────
+function addNewSubject(){
+    const val=document.getElementById('inSubName').value.trim(); if(!val) return;
+    data.subjects[val]={topics:[],color:colors[Object.keys(data.subjects).length%colors.length],examDate:null,examModeManual:false,examModeOverride:false};
+    save();closeModal('modalNewSubject');document.getElementById('inSubName').value='';setView('subject',val);
+}
+function confirmExamDate(){
+    const val=document.getElementById('inExamDate').value; if(!val.includes('/')) return;
+    const p=val.split('/');
+    data.subjects[data.activeSub].examDate=`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+    // Reset override quando si imposta nuova data
+    data.subjects[data.activeSub].examModeOverride=false;
+    save();closeModal('modalExamDate');render();
+}
+function addTopic(){
+    const name=document.getElementById('inT').value.trim(); if(!name) return;
+    data.subjects[data.activeSub].topics.push({id:Date.now().toString(),name,notes:document.getElementById('inN').value,next:shiftDate(new Date(),1),interval:1,triage:data.triage,repeats:0});
+    save();setSubTab('study');showToast('✓ Registrato');
+}
+function updateTriageInHistory(id,n){data.subjects[data.activeSub].topics.find(x=>x.id===id).triage=n;save();render();}
+function openDateModal(id){document.getElementById('editTopicId').value=id;openModal('modalEditDate');}
+function confirmManualDate(){
+    const id=document.getElementById('editTopicId').value,val=document.getElementById('inNewDate').value;
+    if(!val.includes('/')) return;
+    const p=val.split('/');
+    data.subjects[data.activeSub].topics.find(x=>x.id===id).next=`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+    save();closeModal('modalEditDate');render();
+}
+function addExternalEvent(){
+    const title=document.getElementById('extTitle').value.trim();
+    const d=document.getElementById('extDate').value;
+    const time=document.getElementById('extTime').value||null;
+    const endTime=document.getElementById('extEndTime').value.trim()||null;
+    if(!title||!d) return;
+    const p=d.split('/');
+    data.externalEvents.push({title,date:`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`,time,endTime});
+    save();closeModal('modalExt');
+    document.getElementById('extTitle').value='';
+    document.getElementById('extDate').value='';
+    document.getElementById('extTime').value='';
+    document.getElementById('extEndTime').value='';
+    render();
+}
+let _deleteTargetId=null;
+function deleteTopic(id){
+    _deleteTargetId=id;
+    document.getElementById('confirmDeleteBtn').onclick=()=>{
+        data.subjects[data.activeSub].topics=data.subjects[data.activeSub].topics.filter(x=>x.id!==_deleteTargetId);
+        save();closeModal('modalConfirmDelete');render();
+    };
+    openModal('modalConfirmDelete');
+}
+function setTriage(n){data.triage=n;setSubTab('study');}
+function toggleNotes(id){document.getElementById(`nb-${id}`).classList.toggle('hidden');}
+function saveNote(id){data.subjects[data.activeSub].topics.find(x=>x.id===id).notes=document.getElementById(`nt-${id}`).value;save();showToast('✓ Note salvate');}
+function applyImprevisto(){
+    const today=todayStr();
+    data.subjects[data.activeSub].topics.forEach(t=>{if(t.next<=today)t.next=shiftDate(today,1);});
+    save();render();showToast('✓ Ripassi spostati di 1 giorno');
+}
+
+// ── Sync con Google Apps Script ──────────────────────────────────────────────
+const SYNC_KEY = 'studyhub_sync_url';
+let syncUrl = localStorage.getItem(SYNC_KEY) || '';
+let syncInProgress = false;
+let lastSyncTime = null;
+
+function getSyncStatus() { return localStorage.getItem('studyhub_sync_status') || 'none'; }
+function setSyncStatus(s) { localStorage.setItem('studyhub_sync_status', s); updateSyncBtn(s); }
+
+function updateSyncBtn(status) {
+    const btn = document.getElementById('syncBtn');
+    const dot = document.getElementById('syncDot');
+    const lbl = document.getElementById('syncLabel');
+    if (!btn) return;
+    btn.className = 'sync-btn';
+    dot.className = 'sync-status-dot';
+    if (!syncUrl) { lbl.textContent = 'Configura'; dot.style.background = 'var(--text-dim)'; return; }
+    if (status === 'syncing') { lbl.textContent = '↻'; btn.classList.add('syncing'); }
+    else if (status === 'ok') { lbl.textContent = '✓ Sync'; dot.classList.add('connected'); }
+    else if (status === 'error') { lbl.textContent = '⚠ Sync'; dot.classList.add('error'); }
+    else { lbl.textContent = 'Sync'; }
+}
+
+function syncNow() {
+    if (!syncUrl) { openSyncModal(); return; }
+    if (syncInProgress) return;
+    doSync();
+}
+
+async function doSync() {
+    syncInProgress = true;
+    setSyncStatus('syncing');
+    try {
+        const res = await fetch(`${syncUrl}?action=read`, { method: 'GET' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const remote = await res.json();
+        const localTs = data.lastModified || 0;
+        const remoteTs = remote.lastModified || 0;
+        let merged;
+        if (remoteTs > localTs) {
+            merged = { ...remote, isGlobal: data.isGlobal, activeSub: data.activeSub, globalView: data.globalView, filterRipasso: data.filterRipasso, filterEsterni: data.filterEsterni };
+        } else {
+            merged = data;
+        }
+        merged.lastModified = Date.now();
+        const writeRes = await fetch(syncUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify(merged)
+        });
+        if (!writeRes.ok) throw new Error('Write failed');
+        data = merged;
+        save();
+        render();
+        lastSyncTime = new Date();
+        setSyncStatus('ok');
+        showToast(`✓ Sincronizzato — ${lastSyncTime.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}`);
+    } catch(e) {
+        setSyncStatus('error');
+        showToast('⚠ Errore sync: ' + (e.message || 'controlla URL'));
+    } finally {
+        syncInProgress = false;
+    }
+}
+
+function openSyncModal() {
+    const body = document.getElementById('syncModalBody');
+    const connected = !!syncUrl;
+    body.innerHTML = connected ? `
+        <div class="sync-info-row">
+            <span class="sync-status-dot connected"></span>
+            <span class="sync-info-text" title="${syncUrl}">${syncUrl.length>54?syncUrl.substring(0,54)+'…':syncUrl}</span>
+        </div>
+        <p style="font-size:0.78rem;color:var(--text-dim);margin-bottom:16px;line-height:1.6;">Connesso a Google Sheets. Vince sempre i dati con il timestamp più recente.</p>
+        <button class="btn btn-primary" style="margin-bottom:8px;" onclick="closeModal('modalSync');doSync()">↻ SINCRONIZZA ORA</button>
+        <button class="btn btn-secondary" onclick="changeSyncUrl()">CAMBIA URL / UTENTE</button>
+        <button class="btn btn-secondary" style="margin-top:6px;" onclick="disconnectSync()">DISCONNETTI</button>
+        <button class="btn btn-secondary" style="margin-top:6px;" onclick="closeModal('modalSync')">CHIUDI</button>
+    ` : `
+        <p style="font-size:0.78rem;color:var(--text-dim);margin-bottom:14px;line-height:1.65;">
+            Incolla l'URL del tuo <b style="color:var(--text)">Google Apps Script</b> per sincronizzare tra dispositivi.<br><br>
+            <b style="color:var(--primary)">Come configurare:</b><br>
+            1. Vai su <a href="https://script.google.com" target="_blank" style="color:var(--primary)">script.google.com</a> → Nuovo progetto<br>
+            2. Incolla lo script dalla sezione Database dell'app<br>
+            3. <em>Distribuisci → Nuova distribuzione → App Web</em><br>
+            4. Accesso: <em>Chiunque</em> → copia l'URL
+        </p>
+        <input type="text" id="inSyncUrl" placeholder="https://script.google.com/macros/s/…/exec">
+        <div class="modal-btns">
+            <button class="btn btn-primary" onclick="saveSyncUrl()">CONNETTI</button>
+            <button class="btn btn-secondary" onclick="closeModal('modalSync')">ANNULLA</button>
+        </div>`;
+    openModal('modalSync');
+}
+
+function changeSyncUrl() {
+    document.getElementById('syncModalBody').innerHTML = `
+        <p style="font-size:0.78rem;color:var(--text-dim);margin-bottom:12px;">Nuovo URL Apps Script:</p>
+        <input type="text" id="inSyncUrl" placeholder="https://script.google.com/macros/s/…/exec">
+        <div class="modal-btns">
+            <button class="btn btn-primary" onclick="saveSyncUrl()">SALVA</button>
+            <button class="btn btn-secondary" onclick="openSyncModal()">INDIETRO</button>
+        </div>`;
+}
+
+function saveSyncUrl() {
+    const val = document.getElementById('inSyncUrl').value.trim();
+    if (!val || !val.startsWith('https://')) { showToast('⚠ URL non valido'); return; }
+    syncUrl = val;
+    localStorage.setItem(SYNC_KEY, syncUrl);
+    closeModal('modalSync');
+    updateSyncBtn('none');
+    doSync();
+}
+
+function disconnectSync() {
+    syncUrl = '';
+    localStorage.removeItem(SYNC_KEY);
+    localStorage.removeItem('studyhub_sync_status');
+    closeModal('modalSync');
+    updateSyncBtn('none');
+    showToast('✓ Disconnesso');
+}
+
+function toggleScriptBox() {
+    const box = document.getElementById('scriptBox');
+    if (box) box.classList.toggle('hidden');
+}
+
+setInterval(() => { if (syncUrl && !syncInProgress) doSync(); }, 5 * 60 * 1000);
+if (syncUrl) setTimeout(doSync, 1500);
+
+render();
+updateSyncBtn(getSyncStatus());
+</body>
+</html>

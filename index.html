@@ -49,15 +49,19 @@
     </div>
 </div></div>
 
-<div id="modalEditSubject" class="modal-overlay hidden"><div class="modal-card">
-    <div class="modal-title">Modifica materia</div>
-    <input type="text" id="inEditSubName" placeholder="Nuovo nome…" data-enter="confirmRenameSubject">
-    <input type="hidden" id="editSubOldName">
-    <div class="modal-btns">
-        <button class="btn btn-primary" onclick="confirmRenameSubject()">Rinomina</button>
-        <button class="btn btn-danger-solid" onclick="confirmDeleteSubject()">Elimina</button>
+<div id="modalEditSubject" class="modal-overlay hidden"><div class="modal-card wide">
+    <div class="modal-title">Impostazioni materia</div>
+    <div class="field-lbl">Nome</div>
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+        <input type="text" id="inEditSubName" placeholder="Nome materia…" data-enter="confirmRenameSubject" style="flex:1;margin-bottom:0;">
+        <button class="btn btn-secondary btn-small" onclick="confirmRenameSubject()">Rinomina</button>
     </div>
-    <button class="btn btn-secondary" style="margin-top:8px;" onclick="closeModal('modalEditSubject')">Annulla</button>
+    <input type="hidden" id="editSubOldName">
+    <div id="subSettingsBody"></div>
+    <div class="modal-btns" style="margin-top:14px;">
+        <button class="btn btn-secondary" style="color:var(--danger);" onclick="confirmDeleteSubject()">Elimina materia</button>
+        <button class="btn btn-primary" onclick="closeModal('modalEditSubject')">Fatto</button>
+    </div>
 </div></div>
 
 <div id="modalExamDate" class="modal-overlay hidden"><div class="modal-card">
@@ -105,6 +109,28 @@
     </div>
 </div></div>
 
+<div id="modalProgram" class="modal-overlay hidden"><div class="modal-card wide">
+    <div class="modal-title">Incolla il programma</div>
+    <div class="csv-help">Un argomento per riga: diventano «da studiare». Per i sotto-argomenti usa un rientro (tab o 2 spazi), più trattini (- / --) o la numerazione (1. / 1.1 / 1.1.1). Gli argomenti già presenti non vengono duplicati.</div>
+    <textarea id="programRaw" style="min-height:200px;" placeholder="Cardiologia&#10;  Scompenso cardiaco&#10;    Classificazione NYHA&#10;    Terapia&#10;  Aritmie"></textarea>
+    <div class="field-lbl">Inserisci dentro a</div>
+    <select class="styled-select" id="programParent"></select>
+    <div class="modal-btns">
+        <button class="btn btn-primary" onclick="importProgram()">Aggiungi</button>
+        <button class="btn btn-secondary" onclick="closeModal('modalProgram')">Annulla</button>
+    </div>
+</div></div>
+
+<div id="modalSubTopic" class="modal-overlay hidden"><div class="modal-card">
+    <div class="modal-title" id="subTopicTitle">Sotto-argomento</div>
+    <input type="text" id="inSubTopic" placeholder="Nome sotto-argomento…" data-enter="saveSubTopicTodo">
+    <div class="modal-btns">
+        <button class="btn btn-secondary" onclick="saveSubTopic(false)">Da studiare</button>
+        <button class="btn btn-primary" onclick="saveSubTopic(true)">Già studiato</button>
+    </div>
+    <button class="btn btn-secondary" style="margin-top:8px;" onclick="closeModal('modalSubTopic')">Annulla</button>
+</div></div>
+
 <div id="modalConfirm" class="modal-overlay hidden"><div class="modal-card" style="text-align:center;">
     <div class="modal-title" id="confirmTitle">Eliminare?</div>
     <p class="confirm-msg" id="confirmMsg">Questa azione non è reversibile.</p>
@@ -135,6 +161,16 @@
     <div class="modal-title">Impostazioni</div>
     <div id="settingsBody"></div>
     <button class="btn btn-secondary" style="margin-top:14px;" onclick="closeModal('modalSettings')">Chiudi</button>
+</div></div>
+
+<div id="modalTutorial" class="modal-overlay hidden"><div class="modal-card tut-card">
+    <div id="tutBody"></div>
+</div></div>
+
+<div id="modalHelp" class="modal-overlay hidden"><div class="modal-card">
+    <div class="modal-title" id="helpTitle">Aiuto</div>
+    <div class="tut-text" id="helpBody" style="text-align:left;"></div>
+    <button class="btn btn-primary" style="margin-top:18px;" onclick="closeModal('modalHelp')">Ho capito</button>
 </div></div>
 
 <input type="file" id="importFileInput" accept=".json,application/json" onchange="handleImport(event)">

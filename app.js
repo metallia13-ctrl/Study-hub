@@ -19,11 +19,13 @@ const Q_INFO = {
     consolida: { label:'Da consolidare', color:'var(--accent)' },
     buono:     { label:'Buono',          color:'var(--success-bright)' },
     reset:     { label:'Reset completo', color:'var(--exam-color)' },
-    nota:      { label:'Nota',           color:'var(--warning)' }
+    nota:      { label:'Nota',           color:'var(--warning)' },
+    studio:    { label:'Studiato',       color:'var(--sub)' }
 };
 
 // ── Utility ─────────────────────────────────────────────────────────────────
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+const DEVICE_ID = localStorage.getItem('studyhub_device') || (() => { const id = uid(); localStorage.setItem('studyhub_device', id); return id; })();
 function escHtml(s){
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
         .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -50,6 +52,7 @@ function fmtDateLong(iso){
 }
 function daysFromToday(iso){ return Math.round((parseLocalDate(iso) - today0()) / DAY_MS); }
 function dueLabel(iso){
+    if (!iso) return { t: 'da studiare', c: 'todo' };
     const d = daysFromToday(iso);
     if (d < 0) return { t: `in ritardo ${-d}g`, c: 'late' };
     if (d === 0) return { t: 'oggi', c: 'today' };
@@ -91,8 +94,8 @@ function parseTimeInput(str){
 
 // ── Impostazioni del dispositivo (non sincronizzate) ───────────────────────
 let settings = (() => {
-    try { return Object.assign({ orientation:'any', archiveDays:30 }, JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}); }
-    catch (_) { return { orientation:'any', archiveDays:30 }; }
+    try { return Object.assign({ orientation:'any', archiveDays:30, loadBalance:true, dailyMax:0 }, JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}); }
+    catch (_) { return { orientation:'any', archiveDays:30, loadBalance:true, dailyMax:0 }; }
 })();
 function saveSettings(){ localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
 
@@ -120,7 +123,11 @@ function normalizeData(d){
         if (typeof s.notepad !== 'string') s.notepad = '';
         if (!s.sessionLog || typeof s.sessionLog !== 'object') s.sessionLog = {};
         if (!s.deletedTopics || typeof s.deletedTopics !== 'object') s.deletedTopics = {};
+        if (!s.timeLog || typeof s.timeLog !== 'object') s.timeLog = {};
         if (typeof s._mod !== 'number') s._mod = fb;
+        if (s.algo !== 'sm2' && s.algo !== 'fsrs') s.algo = 'fsrs';
+        s.retention = [0.85, 0.9, 0.95].includes(s.retention) ? s.retention : 0.9;
+        if (typeof s.examBoost !== 'boolean') s.examBoost = true;
         const seen = new Set();
         s.topics = s.topics.filter(t => t && typeof t === 'object');
         s.topics.forEach(t => {
@@ -132,11 +139,21 @@ function normalizeData(d){
             t.interval = Number(t.interval) || 1;
             t.easeFactor = Number(t.easeFactor) || 2.5;
             if (typeof t.notes !== 'string') t.notes = t.notes ? String(t.notes) : '';
-            if (!t.next) t.next = todayStr();
+            if (t.status !== 'todo') { delete t.status; if (!t.next) t.next = todayStr(); } else t.next = null;
+            t.parent = t.parent ? String(t.parent) : null;
+            if (!Array.isArray(t.questions)) t.questions = [];
+            t.questions = t.questions.map(String).filter(Boolean);
+            t.seconds = Number(t.seconds) || 0;
             if (!Array.isArray(t.history)) t.history = [];
             t.archived = !!t.archived;
+            t.relearn = !!t.relearn;
+            if (!t.fsrs || typeof t.fsrs !== 'object' || !(t.fsrs.s > 0)) t.fsrs = null;
             if (typeof t._mod !== 'number') t._mod = s._mod;
         });
+        // genitori inesistenti o anelli → argomento principale
+        const ids = new Set(s.topics.map(t => t.id)), byId = {};
+        s.topics.forEach(t => { byId[t.id] = t; if (t.parent && (!ids.has(t.parent) || t.parent === t.id)) t.parent = null; });
+        s.topics.forEach(t => { const seen = new Set([t.id]); let p = t.parent; while (p) { if (seen.has(p)) { t.parent = null; break; } seen.add(p); p = byId[p] ? byId[p].parent : null; } });
     });
     d.externalEvents = d.externalEvents.filter(e => e && typeof e === 'object');
     d.externalEvents.forEach(e => { if (!e.id) e.id = uid(); });
@@ -383,11 +400,17 @@ function renderGlobal(target){
     target.style.removeProperty('--sub');
     const v = data.globalView || 'dayview';
     const vb = (id, label) => `<div class="view-btn${v === id ? ' active' : ''}" onclick="setGlobalView('${id}')">${label}</div>`;
-    target.innerHTML = `
+    const nDue = Object.keys(data.subjects).reduce((a, n) => a + dueTopics(data.subjects[n], n).length, 0);
+    const welcome = Object.keys(data.subjects).length ? '' : `<div class="card welcome">
+            <div class="modal-title" style="margin-bottom:8px;">Inizia da qui</div>
+            <p class="muted" style="margin-bottom:6px;">Crea la tua prima materia con il <b>+</b> in alto, oppure guarda la guida rapida.</p>
+            <div class="btn-row"><button class="btn btn-primary" onclick="openModal('modalNewSubject')">+ Crea materia</button><button class="btn btn-secondary" onclick="openTutorial()">📖 Guida</button></div>
+        </div>`;
+    target.innerHTML = welcome + `
         <div class="search"><input type="search" id="agendaSearch" placeholder="Cerca impegni e argomenti (anche archiviati)…" value="${escHtml(agendaQuery)}" oninput="onAgendaSearch(this.value)"></div>
         <div id="agendaControls">
-            <div class="view-toggle">${vb('today','Oggi')}${vb('dayview','Giorno')}${vb('week','Settimana')}${vb('month','Mese')}</div>
-            <div class="filter-bar">
+            <div class="view-toggle">${vb('today','Oggi')}${vb('mixed', `Ripasso${nDue ? ` (${nDue})` : ''}`)}${vb('dayview','Giorno')}${vb('week','Settimana')}${vb('month','Mese')}</div>
+            <div class="filter-bar${v === 'mixed' ? ' hidden' : ''}">
                 <div class="filter-chip${data.filterRipasso ? ' on' : ''}" data-f="ripasso" onclick="toggleFilter('ripasso')">● Ripassi</div>
                 <div class="filter-chip${data.filterEsterni ? ' on' : ''}" data-f="esterni" onclick="toggleFilter('esterni')">● Impegni</div>
                 <div style="margin-left:auto;"><button class="btn btn-secondary btn-icon" onclick="openAddEvent()">+ Impegno</button></div>
@@ -415,9 +438,10 @@ function renderMainCalendar(){
     const searching = agendaQuery.trim().length > 0;
     if (ctr) ctr.classList.toggle('hidden', searching);
     const cold = document.getElementById('coldSpotsSection');
-    if (cold) cold.classList.toggle('hidden', searching);
+    if (cold) cold.classList.toggle('hidden', searching || data.globalView === 'mixed');
     if (searching) return renderSearchResults(area);
-    if (data.globalView === 'today') renderTodayWidget(area);
+    if (data.globalView === 'mixed') renderMixedReview(area);
+    else if (data.globalView === 'today') renderTodayWidget(area);
     else if (data.globalView === 'dayview') renderDayView(area);
     else if (data.globalView === 'week') renderWeekList(area);
     else renderMonthView(area);
@@ -488,7 +512,7 @@ function renderSearchResults(area){
         { type:'external', id:e.id, name:e.title, color:'var(--warning)', time:e.time ? `${fmtDateLong(e.date)} · ${e.time}` : fmtDateLong(e.date), endTime:e.endTime },
         isEventArchived(e) ? '<span class="badge">archiviato</span>' : '')).join('');
     const tpHtml = tps.map(({ s, t }) => eventCardHtml(
-        { type:'ripasso', id:t.id, name:t.name, subject:`${s} · prossimo ${fmtDateShort(t.next)}`, color:topicColor(t, data.subjects[s]), time:null },
+        { type:'ripasso', id:t.id, name:t.name, subject:`${s}${breadcrumb(t, data.subjects[s]) ? ' › ' + breadcrumb(t, data.subjects[s]) : ''} · ${isTodo(t) ? 'da studiare' : 'prossimo ' + fmtDateShort(t.next)}`, color:topicColor(t, data.subjects[s]), time:null },
         t.archived ? '<span class="badge">archiviato</span>' : '')).join('');
     area.innerHTML = (!evs.length && !tps.length)
         ? `<div class="card empty">Nessun risultato per “${escHtml(agendaQuery.trim())}”</div>`
@@ -669,7 +693,7 @@ function deleteEditingEvent(){
 // ── Materia ─────────────────────────────────────────────────────────────────
 function dueTopics(sub, subName){
     const today = todayStr();
-    let due = sub.topics.filter(t => t.next <= today);
+    let due = sub.topics.filter(t => !isTodo(t) && t.next && t.next <= today);
     if (isExamModeFinal(subName)) due = due.filter(t => t.triage === 3);
     // "Ripeti" manda la carta in fondo alla coda (in ordine di quando l'hai ripetuta)
     const rq = t => (t.requeueAt && localDateStr(new Date(t.requeueAt)) === today) ? t.requeueAt : 0;
@@ -682,7 +706,7 @@ function renderMateria(app){
     if (!sub) { data.isGlobal = true; renderGlobal(app); return; }
     app.style.setProperty('--sub', sub.color);
     const examM = isExamModeFinal(name), diff = daysToExam(sub);
-    const dueN = dueTopics(sub, name).length;
+    const dueN = dueTopics(sub, name).length, cov = coverage(sub);
     let cd;
     if (diff === null) cd = `<button class="countdown empty-cd" onclick="openExamDateModal()">Imposta data esame</button>`;
     else if (diff > 0) cd = `<button class="countdown" onclick="openExamDateModal()" title="${fmtDate(sub.examDate)}"><b>${diff}</b><span>${diff === 1 ? 'giorno' : 'giorni'}<br>all'esame</span></button>`;
@@ -695,7 +719,9 @@ function renderMateria(app){
             <div class="hero-chips">
                 <button class="chip" onclick="setSubTab('ripasso')"><span class="n">${dueN}</span> da ripassare</button>
                 <button class="chip exam${examM ? ' on' : ''}" onclick="toggleExamMode()">● Modalità esame${examM ? ' attiva' : ''}</button>
+                ${cov.todo ? `<button class="chip" onclick="setSubTab('study')"><span class="n">${Math.round(cov.done / cov.total * 100)}%</span> programma</button>` : ''}
                 <button class="chip warn" onclick="applyImprevisto()">⚠ Imprevisto +1g</button>
+                <button class="chip" onclick="openEditSubjectModal(${jsArg(name)})" title="Impostazioni materia">⚙ ${algoLabel(sub)}</button>
             </div>
             ${examM ? `<div class="exam-note">Modalità esame: ripassi e archivio mostrano solo gli argomenti con priorità ESAME.</div>` : ''}
         </section>
@@ -756,18 +782,74 @@ function refreshTab(){
 }
 
 // ── Studio ──────────────────────────────────────────────────────────────────
+// ── Struttura ad albero, programma, "da studiare" ──────────────────────────
+function isTodo(t){ return t.status === 'todo'; }
+function locateTopic(id, subName){
+    if (subName && data.subjects[subName]) {
+        const t = data.subjects[subName].topics.find(x => x.id === id);
+        if (t) return { t, sub: data.subjects[subName], name: subName };
+    }
+    const act = data.subjects[data.activeSub];
+    if (act) { const t = act.topics.find(x => x.id === id); if (t) return { t, sub: act, name: data.activeSub }; }
+    for (const n of Object.keys(data.subjects)) {
+        const t = data.subjects[n].topics.find(x => x.id === id);
+        if (t) return { t, sub: data.subjects[n], name: n };
+    }
+    return null;
+}
+function treeOrder(sub, pool){
+    pool = pool || sub.topics;
+    const ids = new Set(pool.map(t => t.id)), kids = {};
+    pool.forEach(t => { const p = t.parent && ids.has(t.parent) && t.parent !== t.id ? t.parent : ''; (kids[p] = kids[p] || []).push(t); });
+    const out = [], seen = new Set();
+    const walk = (p, depth) => (kids[p] || []).forEach(t => { if (seen.has(t.id)) return; seen.add(t.id); out.push({ t, depth }); walk(t.id, depth + 1); });
+    walk('', 0);
+    pool.forEach(t => { if (!seen.has(t.id)) { seen.add(t.id); out.push({ t, depth: 0 }); walk(t.id, 1); } }); // anelli da sync: mai perdere argomenti
+    return out;
+}
+function childCounts(pool){
+    const ids = new Set(pool.map(t => t.id)), c = {};
+    pool.forEach(t => { if (t.parent && ids.has(t.parent)) c[t.parent] = (c[t.parent] || 0) + 1; });
+    return c;
+}
+function descendantsOf(sub, id){
+    const out = new Set(), stack = [id];
+    while (stack.length) { const cur = stack.pop(); sub.topics.forEach(t => { if (t.parent === cur && !out.has(t.id)) { out.add(t.id); stack.push(t.id); } }); }
+    return out;
+}
+function breadcrumb(t, sub){
+    const names = [], seen = new Set();
+    let p = t.parent;
+    while (p && !seen.has(p)) { seen.add(p); const pt = sub.topics.find(x => x.id === p); if (!pt) break; names.unshift(pt.name); p = pt.parent; }
+    return names.join(' › ');
+}
+function topicOptionsHtml(sub, exclude, selected){
+    return treeOrder(sub).filter(x => !(exclude && exclude.has(x.t.id)))
+        .map(x => `<option value="${escHtml(x.t.id)}"${x.t.id === selected ? ' selected' : ''}>${'\u00a0\u00a0\u00a0'.repeat(x.depth)}${x.depth ? '└ ' : ''}${escHtml(x.t.name)}</option>`).join('');
+}
+function coverage(sub){
+    const total = sub.topics.length, todo = sub.topics.filter(isTodo).length;
+    return { total, todo, done: total - todo };
+}
+
+// ── Studio ──────────────────────────────────────────────────────────────────
 function triageBoxHtml(active, handler){
     const dot = (n, label, bg, fg) => `<div class="t-dot ${active === n ? 'active' : ''}" style="background:${bg};color:${fg}" onclick="${handler(n)}">${label}</div>`;
     return `<div class="triage-box">${dot(1,'Base','var(--success)','#000')}${dot(2,'Complesso','var(--warning)','#000')}${dot(3,'Esame','var(--danger)','#fff')}</div>`;
 }
 function renderStudyTab(target){
+    const sub = data.subjects[data.activeSub];
     target.innerHTML = `<div class="card">
         <div class="section-label">Nuovo argomento studiato</div>
         <div id="studyTriage">${triageBoxHtml(data.triage, n => `setTriage(${n})`)}</div>
         <input type="text" id="inT" placeholder="Nome argomento" onkeydown="if(event.key==='Enter')addTopic()">
-        <textarea id="inN" placeholder="Note (facoltative)…"></textarea>
+        ${sub.topics.length ? `<div class="field-lbl">Dentro a (facoltativo)</div>
+        <select class="styled-select" id="inParent"><option value="">— Argomento principale —</option>${topicOptionsHtml(sub, null, '')}</select>` : ''}
+        <textarea id="inQ" placeholder="Domande d'esame, una per riga (facoltative)…" style="min-height:60px;"></textarea>
+        <textarea id="inN" placeholder="Note / risposte (facoltative)…"></textarea>
         <button class="btn btn-primary" onclick="addTopic()">Pianifica — primo ripasso domani</button>
-    </div>`;
+    </div>
+    ${programCardHtml(sub)}`;
 }
 function setTriage(n){
     data.triage = n;
@@ -775,97 +857,396 @@ function setTriage(n){
     if (box) box.innerHTML = triageBoxHtml(n, k => `setTriage(${k})`);
     save();
 }
-function newTopic(name, notes, next, triage){
+function newTopic(name, notes, next, triage, parent, questions){
     return { id: uid(), name, notes: notes || '', next, interval: 1, easeFactor: 2.5, triage: triage || 1,
-             repeats: 0, history: [], archived: false, created: todayStr() };
+             repeats: 0, history: [], archived: false, created: todayStr(), fsrs: null, relearn: false,
+             parent: parent || null, questions: questions || [], seconds: 0 };
 }
+function parseQuestions(text){ return String(text || '').split('\n').map(s => s.replace(/^\s*(?:[-*•·]|\d+[.)])\s*/, '').trim()).filter(Boolean); }
 function addTopic(){
-    const inT = document.getElementById('inT'), inN = document.getElementById('inN');
+    const sub = data.subjects[data.activeSub];
+    const inT = document.getElementById('inT'), inN = document.getElementById('inN'), inQ = document.getElementById('inQ'), inP = document.getElementById('inParent');
     const name = inT.value.trim();
     if (!name) { inT.focus(); return; }
-    data.subjects[data.activeSub].topics.push(newTopic(name, inN.value, shiftDate(todayStr(), 1), data.triage));
-    save();
-    inT.value = ''; inN.value = '';
-    showToast('✓ Registrato — ripasso domani');
-}
-
-// ── SM-2 ────────────────────────────────────────────────────────────────────
-function srsCompute(t, q){
-    const ef = t.easeFactor || 2.5, iv = t.interval || 1;
-    if (q === 'ripeti')    return { interval: 1, ef: Math.max(1.3, r2(ef - 0.2)) };
-    if (q === 'incerto')   return { interval: iv <= 1 ? 1 : Math.max(2, Math.round(iv * 1.2)), ef: Math.max(1.3, r2(ef - 0.15)) };
-    if (q === 'consolida') return { interval: iv <= 1 ? 3 : Math.max(iv + 1, Math.round(iv * Math.max(1.3, ef - 0.15))), ef };
-    return { interval: iv <= 1 ? 4 : Math.max(iv + 1, Math.round(iv * ef)), ef: Math.min(3.0, r2(ef + 0.05)) };
-}
-function srsLabel(t, q){ if (q === 'ripeti') return 'oggi'; const i = srsCompute(t, q).interval; return i === 1 ? 'domani' : i + 'gg'; }
-
-// ── Ripasso (con feedback giornaliero) ──────────────────────────────────────
-function renderRipassoTab(target, sub){
-    const examM = isExamModeFinal(data.activeSub);
-    const due = dueTopics(sub, data.activeSub);
-    if (!due.length) {
-        const upcoming = sub.topics.filter(t => !(examM && t.triage !== 3) && t.next > todayStr()).map(t => t.next).sort();
-        const next = upcoming[0];
-        const nNext = next ? upcoming.filter(d => d === next).length : 0;
-        target.innerHTML = `<div class="card empty"><span class="big">✓</span>Sessione completata${examM ? ' · modalità esame' : ''}
-            ${next ? `<div style="margin-top:8px;">Prossimo ripasso: <b style="color:var(--text);">${dueLabel(next).t}</b> · ${plural(nNext, 'argomento', 'argomenti')}</div>` : ''}</div>`;
+    const parent = inP && inP.value ? inP.value : null;
+    const qs = parseQuestions(inQ.value);
+    const existing = sub.topics.find(t => isTodo(t) && norm(t.name) === norm(name) && (!parent || t.parent === parent));
+    if (existing) {                                   // era nel programma: lo segna come studiato
+        if (inN.value.trim()) existing.notes = existing.notes ? existing.notes + '\n' + inN.value : inN.value;
+        if (qs.length) existing.questions = existing.questions.concat(qs);
+        inT.value = ''; inN.value = ''; inQ.value = '';
+        markStudied(existing.id);
         return;
     }
-    const today = todayStr();
-    target.innerHTML = `<div class="muted" style="margin-bottom:10px;">${plural(due.length, 'argomento', 'argomenti')} da ripassare</div>` +
-        due.map(t => {
-            const col = topicColor(t, sub), id = jsArg(t.id);
-            const requeued = t.requeueAt && localDateStr(new Date(t.requeueAt)) === today;
-            const late = daysFromToday(t.next);
-            const btn = (q, key) => `<button class="rate-btn" style="--rc:${Q_INFO[q].color}" onclick="rate(${id},'${q}')"><span class="rate-lbl">${Q_INFO[q].label}</span><span class="rate-iv">${srsLabel(t, q)}</span><span class="rate-key">${key}</span></button>`;
-            return `<div class="review-card${requeued ? ' requeued' : ''}" style="--c:${col}" id="rc-${escHtml(t.id)}">
-                <div class="review-name">${escHtml(t.name)}</div>
-                <div class="review-meta">Intervallo ${t.interval}g · ${plural(t.history.filter(h => h.q !== 'reset' && h.q !== 'nota').length, 'ripasso', 'ripassi')}${late < 0 ? ` · <span class="rep">in ritardo ${-late}g</span>` : ''}${t.repeats ? ` · <span class="rep">ripetuto ${t.repeats}✕</span>` : ''}${requeued ? ' · in coda' : ''}</div>
-                <input type="text" class="fb-input" id="fb-${escHtml(t.id)}" placeholder="Feedback di oggi (facoltativo)…" autocomplete="off">
-                ${notesBlockHtml(t)}
-                <div class="rate-grid">${btn('ripeti','1')}${btn('incerto','2')}${btn('consolida','3')}${btn('buono','4')}</div>
-            </div>`;
-        }).join('');
+    sub.topics.push(newTopic(name, inN.value, shiftDate(todayStr(), 1), data.triage, parent, qs));
+    save();
+    inT.value = ''; inN.value = ''; inQ.value = '';
+    refreshTab();
+    showToast('✓ Registrato — ripasso domani');
 }
-function notesBlockHtml(t, open){
+function markStudied(id){
+    const loc = locateTopic(id);
+    if (!loc) return;
+    const t = loc.t, snap = snapshot();
+    delete t.status;
+    t.next = shiftDate(todayStr(), 1); t.interval = 1; t.relearn = false; t.fsrs = null;
+    t.studiedOn = todayStr();
+    pushHistory(t, { d: todayStr(), ts: Date.now(), q: 'studio' });
+    save(); refreshCurrent();
+    showToast(`✓ “${t.name}” studiato — ripasso domani`, snap);
+}
+function refreshCurrent(){
+    const y = window.scrollY;
+    if (data.isGlobal) renderMainCalendar();
+    else if (data.activeTab === 'history') { renderArchList(); updateDueBadges(); }
+    else refreshTab();
+    window.scrollTo(0, y);
+}
+function programCardHtml(sub){
+    const c = coverage(sub), pct = c.total ? Math.round(c.done / c.total * 100) : 0;
+    const ex = daysToExam(sub);
+    let plan = '';
+    if (c.todo && ex !== null && ex > 0) {
+        const buf = ex > 7 ? 3 : ex > 3 ? 1 : 0, days = Math.max(1, ex - buf), per = Math.ceil(c.todo / days);
+        plan = `Per finire ${buf ? `${buf} ${buf === 1 ? 'giorno' : 'giorni'} prima dell'esame` : "entro l'esame"}: <b style="color:var(--text);">${plural(per, 'argomento', 'argomenti')} al giorno</b>.`;
+    } else if (c.todo && ex === null) plan = "Imposta la data d'esame per calcolare il ritmo giornaliero.";
+    const todoRows = treeOrder(sub).filter(x => isTodo(x.t));
+    const shown = todoRows.slice(0, 40);
+    const list = shown.map(({ t }) => {
+        const cr = breadcrumb(t, sub);
+        return `<div class="todo-topic"><span>${cr ? `<span class="crumb" style="display:block;margin:0;">${escHtml(cr)}</span>` : ''}${escHtml(t.name)}</span>
+            <button class="chip" onclick="markStudied(${jsArg(t.id)})">✓ Studiato</button></div>`;
+    }).join('');
+    return `<div class="card">
+        <div class="section-label">Programma d'esame <span class="link-action" onclick="openProgramModal()">+ Incolla programma</span></div>
+        ${c.total ? `<div class="progress-label"><span>Copertura</span><span>${c.done}/${c.total} · ${pct}%</span></div>
+        <div class="progress-bar-bg" style="height:4px;margin-bottom:12px;"><div class="progress-bar-fill" style="width:${pct}%;background:var(--sub)"></div></div>` : ''}
+        ${plan ? `<p class="muted" style="margin-bottom:10px;">${plan}</p>` : ''}
+        ${c.todo ? `<div class="field-lbl" style="margin:6px 0 2px;">Da studiare (${c.todo})</div>${list}${todoRows.length > shown.length ? `<div class="muted" style="padding-top:8px;">…e altri ${todoRows.length - shown.length}: li trovi in Archivio</div>` : ''}`
+                 : `<p class="muted">${c.total ? '✓ Tutto il programma è stato studiato.' : "Incolla l'elenco degli argomenti del programma: diventano «da studiare» e qui vedi quanto ti manca e quanti farne al giorno."}</p>`}
+    </div>`;
+}
+function openProgramModal(){
+    const sub = data.subjects[data.activeSub];
+    document.getElementById('programParent').innerHTML = `<option value="">— Argomenti principali —</option>${topicOptionsHtml(sub, null, '')}`;
+    openModal('modalProgram');
+}
+function parseProgram(text){
+    const out = [];
+    String(text).replace(/\r/g, '').split('\n').forEach(raw => {
+        if (!raw.trim()) return;
+        const lead = raw.match(/^[\t ]*/)[0];
+        let indent = 0;
+        for (const ch of lead) indent += ch === '\t' ? 2 : 1;
+        let level = Math.floor(indent / 2), s = raw.trim(), m;
+        if ((m = s.match(/^((?:\d+[.)])+\d*)\s+/))) {
+            const parts = m[1].split(/[.)]/).filter(Boolean);
+            level = Math.max(level, parts.length - 1);
+            s = s.slice(m[0].length);
+        } else if ((m = s.match(/^([-*•·–]+)\s*/))) {
+            level = level + m[1].length - 1;
+            s = s.slice(m[0].length);
+        }
+        s = s.trim();
+        if (s) out.push({ level, name: s });
+    });
+    let prev = -1;
+    out.forEach(x => { if (x.level > prev + 1) x.level = prev + 1; prev = x.level; });
+    return out;
+}
+function importProgram(){
+    const sub = data.subjects[data.activeSub];
+    const items = parseProgram(document.getElementById('programRaw').value);
+    if (!items.length) { showToast('⚠ Nessun argomento trovato'); return; }
+    const root = document.getElementById('programParent').value || null;
+    const snap = snapshot(), stack = [];
+    let added = 0, dup = 0;
+    items.forEach(it => {
+        const parent = it.level === 0 ? root : (stack[it.level - 1] || root);
+        let t = sub.topics.find(x => norm(x.name) === norm(it.name) && (x.parent || null) === (parent || null));
+        if (t) dup++;
+        else { t = newTopic(it.name, '', null, 1, parent); t.status = 'todo'; sub.topics.push(t); added++; }
+        stack[it.level] = t.id; stack.length = it.level + 1;
+    });
+    save(); closeModal('modalProgram');
+    document.getElementById('programRaw').value = '';
+    refreshTab();
+    showToast(`✓ ${plural(added, 'argomento aggiunto', 'argomenti aggiunti')}${dup ? ` · ${dup} già presenti` : ''}`, snap);
+}
+
+// ── Algoritmi di ripasso: FSRS e Anki classico (SM-2), selezionabili per materia ──
+// I bottoni corrispondono a quelli di Anki: Ripeti = Again, Incerto = Hard,
+// Da consolidare = Good, Buono = Easy. Entrambi i modelli vengono aggiornati
+// a ogni valutazione, così puoi cambiare algoritmo in qualsiasi momento.
+const GRADE = { ripeti:1, incerto:2, consolida:3, buono:4 };
+const MAX_IVL = 36500;
+// Parametri predefiniti FSRS-5 (gli stessi di Anki senza ottimizzazione)
+const FSRS_W = [0.40255, 1.18385, 3.173, 15.69105, 7.1949, 0.5345, 1.4604, 0.0046, 1.54575, 0.1192,
+                1.01925, 1.9395, 0.11, 0.29605, 2.2698, 0.2315, 2.9898, 0.51655, 0.6621];
+const F_DECAY = -0.5, F_FACTOR = 19 / 81;
+
+function daysBetween(a, b){ return Math.round((parseLocalDate(b) - parseLocalDate(a)) / DAY_MS); }
+
+// Fuzz come Anki: piccola variazione casuale (ma stabile per quel ripasso) per non ammassare i ripassi
+function fuzzFactor(t){
+    let h = 2166136261;
+    for (const c of `${t.id}:${t.history.length}`) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
+    let a = (h + 0x6D2B79F5) | 0;
+    let x = Math.imul(a ^ (a >>> 15), 1 | a);
+    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+}
+function fuzzDelta(iv){
+    if (iv < 2.5) return 0;
+    return 1 + 0.15 * Math.max(0, Math.min(iv, 7) - 2.5) + 0.1 * Math.max(0, Math.min(iv, 20) - 7) + 0.05 * Math.max(0, iv - 20);
+}
+function constrainIvl(iv, min, ff){
+    iv = Math.min(iv, MAX_IVL);
+    min = Math.max(1, Math.min(Math.round(min), MAX_IVL));
+    const d = fuzzDelta(iv);
+    if (!d) return Math.max(Math.round(iv), min);
+    const lo = Math.min(Math.max(Math.max(1, Math.round(iv - d)), min), MAX_IVL);
+    const hi = Math.min(Math.max(Math.round(iv + d), min), MAX_IVL);
+    const pick = Math.max(Math.min(hi, Math.floor(lo + ff * (1 + hi - lo))), min);
+    return settings.loadBalance ? balanceDay(lo, hi, pick, min) : pick;
+}
+// Bilanciamento del carico (come il load balancer di Anki): dentro il margine di fuzz
+// sceglie il giorno con meno ripassi già fissati; col limite giornaliero può anticipare un po'.
+let _loadCache = { key: '', map: null };
+function loadMap(){
+    const key = data.lastModified + '|' + todayStr();
+    if (_loadCache.key === key && _loadCache.map) return _loadCache.map;
+    const m = {};
+    Object.values(data.subjects).forEach(s => s.topics.forEach(t => { if (!isTodo(t) && t.next) m[t.next] = (m[t.next] || 0) + 1; }));
+    _loadCache = { key, map: m };
+    return m;
+}
+function balanceDay(lo, hi, pick, min){
+    const m = loadMap(), today = todayStr(), max = settings.dailyMax || 0;
+    const count = d => m[shiftDate(today, d)] || 0;
+    let best = pick, bestScore = Infinity;
+    for (let d = lo; d <= hi; d++) {
+        const c = count(d), score = c + Math.abs(d - pick) * 0.3 + (max && c >= max ? 1e4 : 0);
+        if (score < bestScore) { bestScore = score; best = d; }
+    }
+    if (max && count(best) >= max) {
+        for (let d = lo - 1; d >= Math.max(min, Math.ceil(lo * 0.85)); d--) { if (count(d) < max) { best = d; break; } }
+    }
+    return best;
+}
+
+// ── Anki classico (scheduler v3, impostazioni predefinite) ──
+// Facilità iniziale 2,50 · Hard ×1,2 · Easy bonus 1,3 · nuovo intervallo dopo errore 0% (min 1g)
+function sm2Schedule(t, q, today, ff){
+    const ef = t.easeFactor || 2.5;
+    if (t.relearn) {                                   // dopo un "Ripeti": come i passi di riapprendimento
+        if (q === 'ripeti' || q === 'incerto') return { requeue: true, interval: t.interval, ef };
+        if (q === 'consolida') return { interval: Math.max(1, t.interval), ef };
+        return { interval: Math.max(1, t.interval) + 1, ef };
+    }
+    const ivl = Math.max(1, t.interval || 1);
+    const late = Math.max(0, daysBetween(t.next, today));
+    if (q === 'ripeti') return { requeue: true, relearn: true, interval: 1, ef: Math.max(1.3, r2(ef - 0.2)) };
+    const hard = constrainIvl(ivl * 1.2, ivl + 1, ff);
+    if (q === 'incerto') return { interval: hard, ef: Math.max(1.3, r2(ef - 0.15)) };
+    const good = constrainIvl((ivl + late / 2) * ef, hard + 1, ff);
+    if (q === 'consolida') return { interval: good, ef };
+    const easy = constrainIvl((ivl + late) * ef * 1.3, good + 1, ff);
+    return { interval: easy, ef: r2(ef + 0.15) };
+}
+
+// ── FSRS-5 ──
+const W = FSRS_W;
+function fClamp(d){ return Math.min(10, Math.max(1, d)); }
+function fD0(g){ return fClamp(W[4] - Math.exp(W[5] * (g - 1)) + 1); }
+function fNextD(d, g){ const d1 = d + (-W[6] * (g - 3)) * (10 - d) / 9; return fClamp(W[7] * fD0(4) + (1 - W[7]) * d1); }
+function fR(elapsed, s){ return Math.pow(1 + F_FACTOR * elapsed / s, F_DECAY); }
+function fRecallS(d, s, r, g){
+    const hp = g === 2 ? W[15] : 1, eb = g === 4 ? W[16] : 1;
+    return s * (1 + Math.exp(W[8]) * (11 - d) * Math.pow(s, -W[9]) * (Math.exp((1 - r) * W[10]) - 1) * hp * eb);
+}
+function fForgetS(d, s, r){
+    const lt = W[11] * Math.pow(d, -W[12]) * (Math.pow(s + 1, W[13]) - 1) * Math.exp((1 - r) * W[14]);
+    return Math.min(lt, s / Math.exp(W[17] * W[18]));
+}
+function fShortS(s, g){ return s * Math.exp(W[17] * (g - 3 + W[18])); }
+function fIvl(s, ret){ return s / F_FACTOR * (Math.pow(ret, 1 / F_DECAY) - 1); }
+// Stato FSRS attuale; per gli argomenti nati con il vecchio algoritmo lo ricava da intervallo e facilità
+function fsrsState(t){
+    if (t.fsrs) return t.fsrs;
+    let since = 0;
+    t.history.forEach((h, i) => { if (h.q === 'reset') since = i + 1; });
+    const reviewed = t.history.slice(since).some(h => GRADE[h.q]) || t.interval > 1 || t.repeats > 0;
+    if (!reviewed) return null;
+    return { s: Math.max(0.5, t.interval), d: fClamp(5 + (2.5 - (t.easeFactor || 2.5)) * (5 / 1.2)), last: t.next ? shiftDate(t.next, -t.interval) : todayStr() };
+}
+function fsrsNextState(st, g, today){
+    if (!st) return { s: Math.max(0.1, W[g - 1]), d: fD0(g), last: today };
+    const el = Math.max(0, daysBetween(st.last, today));
+    let s;
+    if (el === 0) s = fShortS(st.s, g);
+    else { const r = fR(el, st.s); s = g === 1 ? fForgetS(st.d, st.s, r) : fRecallS(st.d, st.s, r, g); }
+    return { s: r2(Math.max(0.01, Math.min(s, MAX_IVL))), d: r2(fNextD(st.d, g)), last: today };
+}
+function fsrsSchedule(t, q, today, ff, ret){
+    const g = GRADE[q], st = fsrsState(t);
+    const ns = fsrsNextState(st, g, today);
+    if (g === 1) return { requeue: true, relearn: true, interval: 1, fsrs: ns };
+    if (t.relearn && g === 2) return { requeue: true, interval: t.interval, fsrs: ns };
+    const raw = k => Math.max(1, fIvl(fsrsNextState(st, k, today).s, ret));
+    let hard = constrainIvl(raw(2), 1, ff), good = constrainIvl(raw(3), 1, ff);
+    if (!t.relearn) {                  // in ripasso normale: Hard < Good < Easy, come in Anki
+        hard = Math.min(hard, good);
+        good = Math.max(good, hard + 1);
+    }
+    const easy = Math.max(constrainIvl(raw(4), 1, ff), good + 1);
+    return { interval: g === 2 ? hard : g === 3 ? good : easy, fsrs: ns };
+}
+
+function subAlgo(sub){ return sub && sub.algo === 'sm2' ? 'sm2' : 'fsrs'; }
+function subRetention(sub, name){
+    const base = sub.retention || 0.9;
+    return (sub.examBoost !== false && isExamModeFinal(name)) ? Math.max(base, 0.95) : base;
+}
+function schedule(t, q, sub, name){
+    const today = todayStr(), ff = fuzzFactor(t);
+    const a = sm2Schedule(t, q, today, ff);
+    const b = fsrsSchedule(t, q, today, ff, subRetention(sub, name));
+    const act = subAlgo(sub) === 'sm2' ? a : b;
+    let interval = act.interval, capped = false;
+    if (!act.requeue) {                    // mai oltre l'esame: al più il giorno prima
+        const ex = daysToExam(sub);
+        if (ex !== null && ex >= 2 && interval >= ex) { interval = ex - 1; capped = true; }
+    }
+    return { requeue: !!act.requeue, relearn: !!(a.relearn || b.relearn), interval, capped, ef: a.ef, fsrs: b.fsrs };
+}
+function fmtIvl(n){
+    if (n <= 1) return 'domani';
+    if (n < 30) return n + 'gg';
+    if (n < 365) return (n / 30).toFixed(1).replace('.', ',').replace(',0', '') + ' mesi';
+    return (n / 365).toFixed(1).replace('.', ',').replace(',0', '') + ' anni';
+}
+function previewLabel(t, q, sub, name){ const r = schedule(t, q, sub, name); return r.requeue ? 'oggi' : fmtIvl(r.interval); }
+function memoryInfo(t){
+    const st = fsrsState(t);
+    if (!st) return null;
+    const el = Math.max(0, daysBetween(st.last, todayStr()));
+    return { s: st.s, d: st.d, r: fR(el, st.s) };
+}
+function fmtDays(s){ return s < 1 ? '<1g' : s < 30 ? Math.round(s) + 'g' : s < 365 ? (s / 30).toFixed(1).replace('.', ',') + ' mesi' : (s / 365).toFixed(1).replace('.', ',') + ' anni'; }
+function algoLabel(sub){ return subAlgo(sub) === 'sm2' ? 'Anki classico' : `FSRS ${Math.round((sub.retention || 0.9) * 100)}%`; }
+
+// ── Ripasso (con feedback giornaliero) ──────────────────────────────────────
+// ── Ripasso (con feedback giornaliero) ──────────────────────────────────────
+function reviewCardHtml(t, sub, name, mixed){
+    const today = todayStr(), col = topicColor(t, sub), id = jsArg(t.id), sn = jsArg(name);
+    const requeued = t.requeueAt && localDateStr(new Date(t.requeueAt)) === today;
+    const late = daysFromToday(t.next);
+    const btn = (q, key) => {
+        const r = schedule(t, q, sub, name);
+        const lbl = r.requeue ? 'oggi' : fmtIvl(r.interval) + (r.capped ? ' ⚑' : '');
+        return `<button class="rate-btn" style="--rc:${Q_INFO[q].color}" onclick="rate(${id},'${q}',${sn})"><span class="rate-lbl">${Q_INFO[q].label}</span><span class="rate-iv">${lbl}</span><span class="rate-key">${key}</span></button>`;
+    };
+    const mi = memoryInfo(t), nRev = t.history.filter(h => GRADE[h.q]).length;
+    const metaMain = subAlgo(sub) === 'fsrs'
+        ? (mi ? `Stabilità ${fmtDays(mi.s)} · difficoltà ${mi.d.toFixed(1).replace('.', ',')} · ricordo stimato ${Math.round(mi.r * 100)}%` : 'Primo ripasso')
+        : `Intervallo ${t.interval}g · facilità ${t.easeFactor.toFixed(2).replace('.', ',')}`;
+    const cr = breadcrumb(t, sub);
+    const crumb = (mixed || cr) ? `<div class="crumb">${mixed ? `<span style="color:${sub.color}">${escHtml(name)}</span>${cr ? ' › ' : ''}` : ''}${escHtml(cr)}</div>` : '';
+    const qs = t.questions.length ? `<ol class="q-list">${t.questions.map(q => `<li>${escHtml(q)}</li>`).join('')}</ol>` : '';
+    return `<div class="review-card${requeued ? ' requeued' : ''}" style="--c:${col};--sub:${sub.color}" id="rc-${escHtml(t.id)}">
+        ${crumb}
+        <div class="review-name">${escHtml(t.name)}</div>
+        <div class="review-meta">${metaMain} · ${plural(nRev, 'ripasso', 'ripassi')}${late < 0 ? ` · <span class="rep">in ritardo ${-late}g</span>` : ''}${t.repeats ? ` · <span class="rep">ripetuto ${t.repeats}✕</span>` : ''}${requeued ? ' · in coda' : ''}</div>
+        ${qs}
+        <input type="text" class="fb-input" id="fb-${escHtml(t.id)}" placeholder="Feedback di oggi (facoltativo)…" autocomplete="off">
+        ${notesBlockHtml(t, false, qs ? '▸ Note / risposte' : null)}
+        <div class="rate-grid">${btn('ripeti','1')}${btn('incerto','2')}${btn('consolida','3')}${btn('buono','4')}</div>
+    </div>`;
+}
+function renderRipassoTab(target, sub){
+    const name = data.activeSub, examM = isExamModeFinal(name);
+    const due = dueTopics(sub, name);
+    if (!due.length) {
+        const upcoming = sub.topics.filter(t => !isTodo(t) && !(examM && t.triage !== 3) && t.next > todayStr()).map(t => t.next).sort();
+        const next = upcoming[0], nNext = next ? upcoming.filter(d => d === next).length : 0;
+        const todo = coverage(sub).todo;
+        target.innerHTML = `<div class="card empty"><span class="big">✓</span>Sessione completata${examM ? ' · modalità esame' : ''}
+            ${next ? `<div style="margin-top:8px;">Prossimo ripasso: <b style="color:var(--text);">${dueLabel(next).t}</b> · ${plural(nNext, 'argomento', 'argomenti')}</div>` : ''}
+            ${todo ? `<div style="margin-top:8px;"><span class="link-action" style="color:var(--warning);" onclick="setSubTab('study')">${plural(todo, 'argomento', 'argomenti')} del programma da studiare →</span></div>` : ''}</div>`;
+        return;
+    }
+    const ex = daysToExam(sub);
+    target.innerHTML = `<div class="muted" style="margin-bottom:10px;">${plural(due.length, 'argomento', 'argomenti')} da ripassare · ${algoLabel(sub)}${subAlgo(sub) === 'fsrs' && subRetention(sub, name) > (sub.retention || 0.9) ? ' → 95% (esame)' : ''}${ex !== null && ex >= 2 ? " · ⚑ = anticipato prima dell'esame" : ''}</div>` +
+        due.map(t => reviewCardHtml(t, sub, name, false)).join('');
+}
+function notesBlockHtml(t, open, label){
     const id = escHtml(t.id);
-    return `<span class="notes-toggle" onclick="toggleNotes(${jsArg(t.id)})">▸ Note${t.notes ? ' •' : ''}</span>
+    return `<span class="notes-toggle" onclick="toggleNotes(${jsArg(t.id)})">${label || '▸ Note'}${t.notes ? ' •' : ''}</span>
         <div id="nb-${id}" class="notes-content${open ? '' : ' hidden'}">
             <textarea id="nt-${id}">${escHtml(t.notes)}</textarea>
             <button class="btn btn-secondary btn-small" onclick="saveNote(${jsArg(t.id)})">Salva note</button>
         </div>`;
 }
-function findTopic(id){
-    const sub = data.subjects[data.activeSub];
-    return sub ? sub.topics.find(x => x.id === id) : null;
-}
+function findTopic(id){ const loc = locateTopic(id); return loc ? loc.t : null; }
 function pushHistory(t, entry){
     t.history.push(entry);
     if (t.history.length > HISTORY_CAP) t.history.splice(0, t.history.length - HISTORY_CAP);
 }
-function rate(id, q){
-    const t = findTopic(id);
-    if (!t) return;
+function rate(id, q, subName){
+    const loc = locateTopic(id, subName);
+    if (!loc) return;
+    const { t, sub, name } = loc;
     const snap = snapshot();
     const fbEl = document.getElementById(`fb-${id}`);
     const note = fbEl ? fbEl.value.trim() : '';
-    const r = srsCompute(t, q);
-    t.interval = r.interval;
+    const r = schedule(t, q, sub, name);
     t.easeFactor = r.ef;
-    const entry = { d: todayStr(), ts: Date.now(), q, iv: t.interval };
+    t.fsrs = r.fsrs;
+    const today = todayStr();
+    const entry = { d: today, ts: Date.now(), q, iv: r.requeue ? 0 : r.interval, a: subAlgo(sub) };
     if (note) entry.note = note;
     pushHistory(t, entry);
-    if (q === 'ripeti') { t.repeats += 1; t.requeueAt = Date.now(); }
-    else { t.next = shiftDate(todayStr(), t.interval); delete t.requeueAt; }
+    if (q === 'ripeti') t.repeats += 1;
+    t.interval = r.interval;
+    if (r.requeue) {
+        t.relearn = t.relearn || r.relearn;
+        t.requeueAt = Date.now();
+        if (t.next > today) t.next = today;
+    } else {
+        t.relearn = false;
+        t.next = shiftDate(today, r.interval);
+        delete t.requeueAt;
+    }
     save();
-    refreshTab();
-    showToast(q === 'ripeti' ? `↻ “${t.name}” in fondo alla coda` : `✓ ${Q_INFO[q].label} · ${t.interval === 1 ? 'domani' : 'tra ' + t.interval + 'gg'}${note ? ' · feedback salvato' : ''}`, snap);
+    if (data.isGlobal) { const y = window.scrollY; renderGlobal(document.getElementById('appContent')); window.scrollTo(0, y); }
+    else refreshTab();
+    showToast(r.requeue ? `↻ “${t.name}” in fondo alla coda`
+        : `✓ ${Q_INFO[q].label} · ${r.interval === 1 ? 'domani' : 'tra ' + fmtIvl(r.interval)}${r.capped ? " (prima dell'esame)" : ''}${note ? ' · feedback salvato' : ''}`, snap);
 }
 function toggleNotes(id){ const el = document.getElementById(`nb-${id}`); if (el) el.classList.toggle('hidden'); }
 function saveNote(id){
     const t = findTopic(id), area = document.getElementById(`nt-${id}`);
     if (!t || !area) return;
     t.notes = area.value; save(); showToast('✓ Note salvate');
+}
+
+// ── Ripasso misto (tutte le materie, alternate) ─────────────────────────────
+function mixedQueue(){
+    const lists = Object.keys(data.subjects).map(n => ({ n, l: dueTopics(data.subjects[n], n).slice() })).filter(x => x.l.length);
+    const out = [];
+    while (lists.some(x => x.l.length)) lists.forEach(x => { if (x.l.length) out.push({ t: x.l.shift(), name: x.n, sub: data.subjects[x.n] }); });
+    const today = todayStr();
+    const rq = x => (x.t.requeueAt && localDateStr(new Date(x.t.requeueAt)) === today) ? x.t.requeueAt : 0;
+    return out.map((x, i) => ({ ...x, i })).sort((a, b) => (rq(a) - rq(b)) || (a.i - b.i));
+}
+function renderMixedReview(area){
+    const q = mixedQueue();
+    const nSub = new Set(q.map(x => x.name)).size;
+    area.innerHTML = (q.length
+        ? `<div class="muted" style="margin-bottom:10px;">${plural(q.length, 'argomento', 'argomenti')} da ${plural(nSub, 'materia', 'materie')}, alternate per allenare il ragionamento tra discipline</div>` +
+          q.map(x => reviewCardHtml(x.t, x.sub, x.name, true)).join('')
+        : `<div class="card empty"><span class="big">✓</span>Nessun ripasso in sospeso in nessuna materia</div>`) + loadForecastCard(null);
 }
 
 // ── Agenda materia ──────────────────────────────────────────────────────────
@@ -889,9 +1270,11 @@ function renderSubWeek(){
 function changeSubWeek(dir){ weekOffset += dir; renderSubWeek(); }
 
 // ── Archivio: ricerca, dettaglio, storico ───────────────────────────────────
+// ── Archivio: albero, ricerca, dettaglio, storico ───────────────────────────
+const collapsedTopics = new Set();
 function renderHistoryTab(target, sub){
     target.innerHTML = `
-        <div class="search"><input type="search" id="archSearch" placeholder="Cerca in nome, note e feedback (anche archiviati)…" value="${escHtml(archQuery)}" oninput="onArchSearch(this.value)"></div>
+        <div class="search"><input type="search" id="archSearch" placeholder="Cerca in nomi, domande, note e feedback (anche archiviati)…" value="${escHtml(archQuery)}" oninput="onArchSearch(this.value)"></div>
         <div id="historyList"></div>
         <div id="archFoot" class="arch-foot"></div>`;
     renderArchList();
@@ -902,73 +1285,111 @@ function renderArchList(){
     if (!sub || !list) return;
     const examM = isExamModeFinal(data.activeSub);
     const q = norm(archQuery.trim());
-    let pool = examM ? sub.topics.filter(t => t.triage === 3) : sub.topics;
-    const archivedN = pool.filter(t => t.archived).length;
-    const items = q ? pool.filter(t => topicMatches(t, q)) : pool.filter(t => !t.archived);
+    const pool = examM ? sub.topics.filter(t => t.triage === 3) : sub.topics;
     list.innerHTML = '';
-    items.forEach(t => list.appendChild(buildArchItem(t, sub, !q)));
-    if (!items.length) list.innerHTML = `<div class="card empty">${q ? `Nessun argomento trovato per “${escHtml(archQuery.trim())}”` : (sub.topics.length ? 'Tutti gli argomenti sono archiviati' : 'Nessun argomento — registrane uno in Studio')}</div>`;
-    foot.textContent = q ? '' : (archivedN ? `${plural(archivedN, 'argomento archiviato', 'argomenti archiviati')} — usa la ricerca per vederli` : (items.length > 1 ? 'Trascina ⠿ per riordinare' : ''));
+    if (q) {
+        const items = pool.filter(t => topicMatches(t, q));
+        items.forEach(t => list.appendChild(buildArchItem(t, sub, { depth: 0, crumb: true })));
+        if (!items.length) list.innerHTML = `<div class="card empty">Nessun argomento trovato per “${escHtml(archQuery.trim())}”</div>`;
+        foot.textContent = '';
+        return;
+    }
+    const hidden = new Set();
+    pool.forEach(t => { if (t.archived) { hidden.add(t.id); descendantsOf(sub, t.id).forEach(id => hidden.add(id)); } });
+    const visible = pool.filter(t => !hidden.has(t.id));
+    const kids = childCounts(visible);
+    let skip = null;
+    treeOrder(sub, visible).forEach(({ t, depth }) => {
+        if (skip !== null && depth > skip) return;
+        skip = null;
+        list.appendChild(buildArchItem(t, sub, { depth, drag: true, kids: kids[t.id] || 0 }));
+        if (collapsedTopics.has(t.id) && kids[t.id]) skip = depth;
+    });
+    if (!visible.length) list.innerHTML = `<div class="card empty">${sub.topics.length ? 'Tutti gli argomenti sono archiviati' : 'Nessun argomento — registrane uno in Studio o incolla il programma'}</div>`;
+    const parts = [];
+    if (hidden.size) parts.push(`${plural(hidden.size, 'argomento archiviato', 'argomenti archiviati')} — usa la ricerca per vederli`);
+    else if (visible.length > 1) parts.push('Trascina ⠿ per riordinare o spostare tra gli argomenti');
+    foot.textContent = parts.join(' · ');
 }
-function buildArchItem(t, sub, draggable){
+function buildArchItem(t, sub, meta){
     const el = document.createElement('div');
-    el.className = `arch-item draggable-item${expandedTopics.has(t.id) ? ' open' : ''}${t.archived ? ' is-archived' : ''}`;
+    el.className = `arch-item draggable-item${t.archived ? ' is-archived' : ''}`;
     el.dataset.id = t.id;
-    el.style.setProperty('--c', topicColor(t, sub));
+    el._meta = meta;
+    el.style.marginLeft = (Math.min(meta.depth || 0, 5) * 14) + 'px';
+    el.style.setProperty('--c', isTodo(t) ? 'var(--border)' : topicColor(t, sub));
     fillArchItem(el, t);
-    if (draggable) attachDrag(el, t);
+    if (meta.drag) attachDrag(el, t);
     return el;
 }
 function fillArchItem(el, t){
-    const open = expandedTopics.has(t.id), due = dueLabel(t.next), id = jsArg(t.id);
+    const sub = data.subjects[data.activeSub], meta = el._meta || {};
+    const open = expandedTopics.has(t.id), id = jsArg(t.id);
+    const due = isTodo(t) ? { t: 'da studiare', c: 'todo' } : dueLabel(t.next);
+    const cr = meta.crumb ? breadcrumb(t, sub) : '';
     el.classList.toggle('open', open);
     el.innerHTML = `<div class="topic-row" onclick="toggleArch(${id})">
-            <span class="drag-handle" onclick="event.stopPropagation()" title="Trascina per riordinare">⠿</span>
-            <span class="tr-name">${escHtml(t.name)}</span>
+            ${meta.drag ? `<span class="drag-handle" onclick="event.stopPropagation()" title="Trascina">⠿</span>` : ''}
+            <span class="tr-name">${cr ? `<span class="crumb" style="display:block;margin:0;">${escHtml(cr)}</span>` : ''}${escHtml(t.name)}</span>
+            ${meta.kids ? `<span class="tr-kids" onclick="event.stopPropagation();toggleKids(${id})">${collapsedTopics.has(t.id) ? '▸' : '▾'} ${meta.kids}</span>` : ''}
             ${t.archived ? '<span class="badge">archiviato</span>' : ''}
+            ${t.questions.length ? `<span class="tr-due" title="Domande">?${t.questions.length}</span>` : ''}
             ${t.repeats ? `<span class="tr-due late">${t.repeats}✕</span>` : ''}
             <span class="tr-due ${due.c}">${due.t}</span>
             <span class="tr-chev">›</span>
         </div>
         ${open ? `<div class="topic-detail">${archDetailHtml(t)}</div>` : ''}`;
 }
+function toggleKids(id){
+    if (collapsedTopics.has(id)) collapsedTopics.delete(id); else collapsedTopics.add(id);
+    const y = window.scrollY; renderArchList(); window.scrollTo(0, y);
+}
+function kvHtml(t){
+    const sub = data.subjects[data.activeSub], mi = memoryInfo(t);
+    const cells = subAlgo(sub) === 'fsrs'
+        ? [[fmtDateShort(t.next), 'Prossimo'], [mi ? fmtDays(mi.s) : '—', 'Stabilità'], [mi ? mi.d.toFixed(1).replace('.', ',') : '—', 'Difficoltà'], [mi ? Math.round(mi.r * 100) + '%' : '—', 'Ricordo oggi']]
+        : [[fmtDateShort(t.next), 'Prossimo'], [t.interval + 'g', 'Intervallo'], [t.easeFactor.toFixed(2).replace('.', ','), 'Facilità'], [t.repeats, 'Ripetuto']];
+    return `<div class="kv">${cells.map(([v, l]) => `<div><b>${v}</b><span>${l}</span></div>`).join('')}</div>`;
+}
 function archDetailHtml(t){
-    const id = jsArg(t.id);
+    const sub = data.subjects[data.activeSub], id = jsArg(t.id), todo = isTodo(t);
     const hist = [...t.history].reverse();
     const showAll = expandedHist.has(t.id), shown = showAll ? hist : hist.slice(0, 8);
     const histHtml = hist.length ? `<div class="hist">${shown.map(h => {
             const qi = Q_INFO[h.q] || Q_INFO.nota;
             return `<div class="hist-item" style="--hc:${qi.color}">
-                <div class="hist-head"><span class="hist-q">${qi.label}</span><span>${fmtDateLong(h.d)}</span>${h.iv && h.q !== 'reset' && h.q !== 'nota' ? `<span>→ ${h.iv === 1 && h.q !== 'ripeti' ? 'domani' : h.q === 'ripeti' ? 'stesso giorno' : h.iv + 'gg'}</span>` : ''}
+                <div class="hist-head"><span class="hist-q">${qi.label}</span><span>${fmtDateLong(h.d)}</span>${GRADE[h.q] ? `<span>→ ${h.q === 'ripeti' || !h.iv ? 'stesso giorno' : fmtIvl(h.iv)}</span>` : ''}${h.a ? `<span style="opacity:.6;">${h.a === 'sm2' ? 'Anki' : 'FSRS'}</span>` : ''}
                     <span class="hist-edit" onclick="editHistNote(${id},${h.ts})" title="${h.note ? 'Modifica' : 'Aggiungi'} feedback">✎</span></div>
                 ${h.note ? `<div class="hist-note">${escHtml(h.note)}</div>` : ''}
             </div>`;
         }).join('')}</div>${hist.length > shown.length ? `<div class="hist-more" onclick="toggleHistAll(${id})">Mostra tutti (${hist.length})</div>` : (showAll && hist.length > 8 ? `<div class="hist-more" onclick="toggleHistAll(${id})">Mostra meno</div>` : '')}`
         : `<div class="muted" style="margin-bottom:14px;">Nessun ripasso registrato. Il feedback che scrivi in Ripasso apparirà qui, giorno per giorno.</div>`;
+    const excl = descendantsOf(sub, t.id); excl.add(t.id);
     return `
-        <div class="kv">
-            <div><b>${fmtDateShort(t.next)}</b><span>Prossimo</span></div>
-            <div><b>${t.interval}g</b><span>Intervallo</span></div>
-            <div><b>${t.easeFactor.toFixed(2)}</b><span>Facilità</span></div>
-            <div><b>${t.repeats}</b><span>Ripetuto</span></div>
-        </div>
+        ${todo ? `<div class="todo-banner"><span>Da studiare</span><button class="chip on" onclick="markStudied(${id})">✓ Studiato oggi</button></div>` : kvHtml(t)}
         <div class="set-lbl">Priorità</div>
         ${triageBoxHtml(t.triage, n => `updateTriageInHistory(${id},${n})`)}
-        ${notesBlockHtml(t, !!t.notes)}
+        <div class="set-lbl" style="margin-top:16px;">Domande d'esame</div>
+        <textarea id="qs-${escHtml(t.id)}" placeholder="Una domanda per riga: in Ripasso le vedrai prima delle note" style="min-height:64px;">${escHtml(t.questions.join('\n'))}</textarea>
+        <button class="btn btn-secondary btn-small" onclick="saveQuestions(${id})">Salva domande</button>
+        <div style="margin-top:14px;">${notesBlockHtml(t, !!t.notes, '▸ Note / risposte')}</div>
         <div class="set-lbl" style="margin-top:18px;">Storico ripassi <span class="link-action" onclick="addFreeNote(${id})">+ nota</span></div>
         ${histHtml}
-        <div class="detail-actions" style="margin-top:16px;">
-            <button class="chip" onclick="openDateModal(${id})">Ripianifica</button>
-            <button class="chip" onclick="resetTopic(${id})">↺ Reset completo</button>
+        <div class="set-lbl" style="margin-top:6px;">Posizione</div>
+        <select class="styled-select" onchange="moveTopic(${id}, this.value)"><option value="">— Argomento principale —</option>${topicOptionsHtml(sub, excl, t.parent)}</select>
+        <div class="detail-actions" style="margin-top:6px;">
+            <button class="chip" onclick="openSubTopicModal(${id})">+ Sotto-argomento</button>
+            ${todo ? '' : `<button class="chip" onclick="openDateModal(${id})">Ripianifica</button><button class="chip" onclick="resetTopic(${id})">↺ Reset completo</button>`}
             <button class="chip" onclick="toggleArchiveTopic(${id})">${t.archived ? '⤒ Ripristina' : '⤓ Archivia'}</button>
             <button class="chip warn" onclick="deleteTopic(${id})">Elimina</button>
         </div>
-        ${t.created ? `<div class="muted" style="margin-top:12px;font-size:.62rem;">Registrato il ${fmtDate(t.created)}</div>` : ''}`;
+        ${t.seconds ? `<div class="muted" style="margin-top:12px;font-size:.62rem;">Tempo di studio col timer: ${fmtDur(t.seconds)}</div>` : ''}
+        ${t.created ? `<div class="muted" style="margin-top:6px;font-size:.62rem;">Registrato il ${fmtDate(t.created)}${t.studiedOn ? ` · studiato il ${fmtDate(t.studiedOn)}` : ''}</div>` : ''}`;
 }
 function rerenderArchItem(id){
     const el = [...document.querySelectorAll('#historyList .arch-item')].find(x => x.dataset.id === id);
     const t = findTopic(id);
-    if (el && t) { fillArchItem(el, t); el.style.setProperty('--c', topicColor(t, data.subjects[data.activeSub])); }
+    if (el && t) { fillArchItem(el, t); el.style.setProperty('--c', isTodo(t) ? 'var(--border)' : topicColor(t, data.subjects[data.activeSub])); }
     else renderArchList();
 }
 function toggleArch(id){
@@ -976,8 +1397,43 @@ function toggleArch(id){
     rerenderArchItem(id);
 }
 function toggleHistAll(id){ if (expandedHist.has(id)) expandedHist.delete(id); else expandedHist.add(id); rerenderArchItem(id); }
+function saveQuestions(id){
+    const t = findTopic(id), area = document.getElementById(`qs-${id}`);
+    if (!t || !area) return;
+    t.questions = parseQuestions(area.value);
+    save(); rerenderArchItem(id); showToast(`✓ ${plural(t.questions.length, 'domanda salvata', 'domande salvate')}`);
+}
+function moveTopic(id, parentId){
+    const sub = data.subjects[data.activeSub], t = findTopic(id);
+    if (!t) return;
+    if (parentId && (parentId === id || descendantsOf(sub, id).has(parentId))) { showToast('⚠ Non puoi spostarlo dentro un suo sotto-argomento'); renderArchList(); return; }
+    const snap = snapshot();
+    t.parent = parentId || null;
+    if (parentId) collapsedTopics.delete(parentId);
+    save(); renderArchList(); showToast('✓ Spostato', snap);
+}
+let _subTopicParent = null;
+function openSubTopicModal(id){
+    const t = findTopic(id);
+    if (!t) return;
+    _subTopicParent = id;
+    document.getElementById('subTopicTitle').textContent = `Sotto-argomento di “${t.name}”`;
+    document.getElementById('inSubTopic').value = '';
+    openModal('modalSubTopic');
+}
+function saveSubTopic(studied){
+    const sub = data.subjects[data.activeSub], name = document.getElementById('inSubTopic').value.trim();
+    if (!name || !_subTopicParent) return;
+    const t = newTopic(name, '', studied ? shiftDate(todayStr(), 1) : null, data.triage, _subTopicParent);
+    if (!studied) t.status = 'todo'; else t.studiedOn = todayStr();
+    sub.topics.push(t);
+    collapsedTopics.delete(_subTopicParent);
+    save(); closeModal('modalSubTopic'); renderArchList();
+    showToast(studied ? '✓ Aggiunto — ripasso domani' : '✓ Aggiunto da studiare');
+}
 function attachDrag(card, t){
     const handle = card.querySelector('.drag-handle');
+    if (!handle) return;
     const enable = () => { card.draggable = true; };
     handle.addEventListener('mousedown', enable);
     handle.addEventListener('touchstart', enable, { passive:true });
@@ -988,18 +1444,19 @@ function attachDrag(card, t){
     card.addEventListener('drop', e => {
         e.preventDefault(); card.classList.remove('drag-over');
         if (!dragSrc || dragSrc === card) return;
-        const list = card.parentNode, all = [...list.querySelectorAll('.draggable-item')];
+        const sub = data.subjects[data.activeSub], topics = sub.topics;
+        const all = [...card.parentNode.querySelectorAll('.draggable-item')];
         const fromIdx = all.indexOf(dragSrc), toIdx = all.indexOf(card);
-        const topics = data.subjects[data.activeSub].topics;
         const srcT = topics.find(x => x.id === dragSrc.dataset.id), dstT = topics.find(x => x.id === card.dataset.id);
+        dragSrc = null;
         if (!srcT || !dstT) return;
+        if (descendantsOf(sub, srcT.id).has(dstT.id)) { showToast('⚠ Non puoi spostarlo dentro un suo sotto-argomento'); return; }
+        srcT.parent = dstT.parent || null;           // prende il livello della destinazione
         topics.splice(topics.indexOf(srcT), 1);
         let di = topics.indexOf(dstT);
         if (fromIdx < toIdx) di += 1;
         topics.splice(di, 0, srcT);
-        save();
-        list.insertBefore(dragSrc, fromIdx < toIdx ? card.nextSibling : card);
-        dragSrc = null;
+        save(); renderArchList();
     });
 }
 function updateTriageInHistory(id, n){
@@ -1010,7 +1467,12 @@ function updateTriageInHistory(id, n){
 }
 function openTopicInArchive(topicId, expand){
     const t = findTopic(topicId);
-    if (t) { if (expand) expandedTopics.add(t.id); if (t.archived) archQuery = t.name; }
+    if (t) {
+        if (expand) expandedTopics.add(t.id);
+        if (t.archived) archQuery = t.name;
+        let p = t.parent; const seen = new Set();
+        while (p && !seen.has(p)) { seen.add(p); collapsedTopics.delete(p); const pt = findTopic(p); p = pt ? pt.parent : null; }
+    }
     setSubTab('history');
     setTimeout(() => {
         const el = [...document.querySelectorAll('#historyList [data-id]')].find(x => x.dataset.id === topicId);
@@ -1021,8 +1483,6 @@ function openTopicInArchive(topicId, expand){
         }
     }, 80);
 }
-
-// Feedback: modifica di una voce dello storico, o nota libera di oggi
 let _histEdit = null;
 function editHistNote(id, ts){
     const t = findTopic(id);
@@ -1058,6 +1518,7 @@ function saveHistNote(){
 // ── Reset completo & archiviazione ──────────────────────────────────────────
 function applyFullReset(t){
     t.interval = 1; t.easeFactor = 2.5; t.repeats = 0;
+    t.fsrs = null; t.relearn = false;
     t.next = shiftDate(todayStr(), 1);
     delete t.requeueAt;
     pushHistory(t, { d: todayStr(), ts: Date.now(), q: 'reset', iv: 1 });
@@ -1067,7 +1528,7 @@ function resetTopic(id){
     if (!t) return;
     confirmDialog({
         title: 'Reset completo?',
-        msg: `“${t.name}” ripartirà da zero come appena studiato: intervallo 1 giorno, facilità 2,50, ripetizioni azzerate, primo ripasso domani. Lo storico dei feedback resta.`,
+        msg: `“${t.name}” ripartirà da zero come appena studiato: memoria FSRS, intervallo e facilità azzerati, ripetizioni a 0, primo ripasso domani. Lo storico dei feedback resta.`,
         ok: 'Reset'
     }, () => {
         const snap = snapshot();
@@ -1080,12 +1541,13 @@ function resetAllTopics(){
     if (!sub || !sub.topics.length) return;
     confirmDialog({
         title: 'Reset di tutta la materia?',
-        msg: `Tutti i ${sub.topics.length} argomenti di “${data.activeSub}” ripartiranno da zero (intervallo 1g, facilità 2,50, ripetizioni azzerate, ripasso domani). Lo storico resta.`,
+        msg: `Tutti i ${sub.topics.length} argomenti di “${data.activeSub}” ripartiranno da zero (memoria FSRS, intervallo e facilità azzerati, ripetizioni a 0, ripasso domani). Lo storico resta.`,
         ok: 'Reset tutto'
     }, () => {
         const snap = snapshot();
-        sub.topics.forEach(applyFullReset); save(); refreshTab();
-        showToast(`✓ ${plural(sub.topics.length, 'argomento resettato', 'argomenti resettati')}`, snap);
+        const list = sub.topics.filter(t => !isTodo(t));
+        list.forEach(applyFullReset); save(); refreshTab();
+        showToast(`✓ ${plural(list.length, 'argomento resettato', 'argomenti resettati')}`, snap);
     });
 }
 function toggleArchiveTopic(id){
@@ -1100,9 +1562,11 @@ function toggleArchiveTopic(id){
 function deleteTopic(id){
     const t = findTopic(id);
     if (!t) return;
-    confirmDialog({ title:'Eliminare argomento?', msg:`“${t.name}” e il suo storico verranno eliminati.` }, () => {
+    const sub = data.subjects[data.activeSub];
+    const kids = sub.topics.filter(x => x.parent === id);
+    confirmDialog({ title:'Eliminare argomento?', msg:`“${t.name}” e il suo storico verranno eliminati.${kids.length ? ` ${kids.length === 1 ? 'Il suo sotto-argomento sale' : `I suoi ${kids.length} sotto-argomenti salgono`} di un livello.` : ''}` }, () => {
         const snap = snapshot();
-        const sub = data.subjects[data.activeSub];
+        kids.forEach(k => { k.parent = t.parent || null; });
         sub.topics = sub.topics.filter(x => x.id !== id);
         expandedTopics.delete(id);
         save(); refreshTab(); showToast('✓ Argomento eliminato', snap);
@@ -1110,7 +1574,7 @@ function deleteTopic(id){
 }
 function applyImprevisto(){
     const today = todayStr(), sub = data.subjects[data.activeSub];
-    const due = sub.topics.filter(t => t.next <= today);
+    const due = sub.topics.filter(t => !isTodo(t) && t.next && t.next <= today);
     if (!due.length) { showToast('Nessun ripasso da spostare oggi'); return; }
     const snap = snapshot(), tomorrow = shiftDate(today, 1);
     due.forEach(t => { t.next = tomorrow; delete t.requeueAt; });
@@ -1202,69 +1666,149 @@ function saveNotepad(silent){
 }
 
 // ── Statistiche (sessioni ricavate dallo storico: include anche "Ripeti") ──
+// ── Statistiche ─────────────────────────────────────────────────────────────
 function sessionCounts(sub){
-    const counts = { ...sub.sessionLog };   // log delle versioni precedenti
+    const counts = { ...sub.sessionLog };
     const fromHist = {};
-    sub.topics.forEach(t => t.history.forEach(h => { if (h.q !== 'reset' && h.q !== 'nota') fromHist[h.d] = (fromHist[h.d] || 0) + 1; }));
+    sub.topics.forEach(t => t.history.forEach(h => { if (GRADE[h.q]) fromHist[h.d] = (fromHist[h.d] || 0) + 1; }));
     Object.keys(fromHist).forEach(d => { counts[d] = Math.max(counts[d] || 0, fromHist[d]); });
     return counts;
+}
+function barsHtml(values, labelsFn, todayIdx, title){
+    const max = Math.max(...values, 1);
+    return `<div class="session-bar-wrap">${values.map((v, i) => `<div class="session-bar${i === todayIdx ? ' today' : ''}" style="height:${Math.max(3, Math.round(v / max * 60))}px;" title="${labelsFn(i)}: ${title(v)}"></div>`).join('')}</div>
+        <div class="session-labels">${values.map((_, i) => `<div class="session-label">${i % 2 === (todayIdx === 0 ? 0 : 1) ? labelsFn(i) : ''}</div>`).join('')}</div>`;
+}
+function forecastCounts(subName){
+    const today = todayStr(), arr = new Array(30).fill(0);
+    Object.keys(data.subjects).forEach(n => {
+        if (subName && n !== subName) return;
+        data.subjects[n].topics.forEach(t => {
+            if (isTodo(t) || !t.next) return;
+            const d = Math.max(0, daysBetween(today, t.next));
+            if (d < 30) arr[d]++;
+        });
+    });
+    return arr;
+}
+function loadForecastCard(subName){
+    const c = forecastCounts(subName), max = Math.max(...c), tot = c.reduce((a, b) => a + b, 0);
+    const lbl = i => { const d = parseLocalDate(shiftDate(todayStr(), i)); return `${d.getDate()}/${d.getMonth() + 1}`; };
+    return `<div class="card">
+        <div class="section-label">Carico prossimi 30 giorni${subName ? '' : ' · tutte le materie'} <span>${tot} ripassi · picco ${max}/g</span></div>
+        ${barsHtml(c, lbl, 0, v => `${v} ripassi`)}
+        ${settings.dailyMax ? `<div class="muted" style="margin-top:8px;">Limite impostato: ${settings.dailyMax} al giorno${max > settings.dailyMax ? ' — alcuni giorni lo superano (ripassi già fissati prima del limite)' : ''}</div>` : ''}
+    </div>`;
+}
+// Probabilità di ricordare ogni argomento il giorno dell'esame, se da oggi non lo ripassi più
+function examReadiness(sub){
+    const ex = daysToExam(sub);
+    if (ex === null || ex < 0) return null;
+    return sub.topics.map(t => {
+        if (isTodo(t)) return { t, r: 0, todo: true };
+        const st = fsrsState(t) || { s: W[2], last: t.studiedOn || t.created || shiftDate(t.next, -1) };
+        return { t, r: fR(Math.max(0, daysBetween(st.last, sub.examDate)), st.s) };
+    }).sort((a, b) => a.r - b.r);
+}
+function readinessCardHtml(sub){
+    const rows = examReadiness(sub);
+    if (!rows || !rows.length) return '';
+    const avg = rows.reduce((a, x) => a + x.r, 0) / rows.length;
+    const pctCol = r => r >= 0.85 ? 'var(--success-bright)' : r >= 0.7 ? 'var(--warning)' : 'var(--danger)';
+    const weak = rows.slice(0, 10);
+    return `<div class="card">
+        <div class="section-label">Pronto per l'esame? <span>${fmtDateShort(sub.examDate)}</span></div>
+        <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px;">
+            <span class="stat-number" style="font-size:2.2rem;color:${pctCol(avg)}">${Math.round(avg * 100)}%</span>
+            <span class="muted">ricordo medio stimato il giorno dell'esame, se da oggi non ripassassi più nulla</span>
+        </div>
+        <div class="field-lbl" style="margin:12px 0 4px;">Più a rischio</div>
+        ${weak.map(x => `<div class="ready-row">
+            <span class="nm">${escHtml(x.t.name)}</span>
+            <span class="ready-pct" style="color:${x.todo ? 'var(--warning)' : pctCol(x.r)}">${x.todo ? '—' : Math.round(x.r * 100) + '%'}</span>
+            ${x.todo ? `<button class="chip" onclick="setSubTab('study')">Da studiare</button>`
+                     : (x.t.next <= todayStr() ? `<span class="tr-due today" style="min-width:86px;text-align:center;">in coda oggi</span>` : `<button class="chip" onclick="reviewNow(${jsArg(x.t.id)})">Ripassa oggi</button>`)}
+        </div>`).join('')}
+    </div>`;
+}
+function reviewNow(id){
+    const t = findTopic(id);
+    if (!t) return;
+    const snap = snapshot();
+    t.next = todayStr(); delete t.requeueAt;
+    save(); refreshTab(); showToast(`✓ “${t.name}” aggiunto ai ripassi di oggi`, snap);
+}
+function studySecondsOn(sub, iso){ let s = 0; Object.values(sub.timeLog || {}).forEach(dev => { s += (dev && dev[iso]) || 0; }); return s; }
+function fmtDur(sec){ const m = Math.round(sec / 60); return m < 60 ? `${m} min` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}`; }
+function studyTimeCardHtml(sub){
+    const days = [], vals = [];
+    for (let i = 13; i >= 0; i--) { const iso = shiftDate(todayStr(), -i); days.push(iso); vals.push(studySecondsOn(sub, iso)); }
+    const week = vals.slice(7).reduce((a, b) => a + b, 0);
+    const top = sub.topics.filter(t => t.seconds > 0).sort((a, b) => b.seconds - a.seconds).slice(0, 5);
+    if (!vals.some(v => v) && !top.length) return `<div class="card"><div class="section-label">Tempo di studio</div><p class="muted">Avvia il timer ⏱ (scegliendo anche l'argomento, se vuoi): qui vedrai le ore studiate per giorno e per argomento.</p></div>`;
+    const lbl = i => { const d = parseLocalDate(days[i]); return `${d.getDate()}/${d.getMonth() + 1}`; };
+    return `<div class="card">
+        <div class="section-label">Tempo di studio <span>${fmtDur(week)} questa settimana</span></div>
+        ${barsHtml(vals.map(v => Math.round(v / 60)), lbl, 13, v => `${v} min`)}
+        ${top.length ? `<div class="field-lbl" style="margin:14px 0 4px;">Argomenti più studiati</div>${top.map(t => `<div class="ready-row"><span class="nm">${escHtml(t.name)}</span><span class="muted">${fmtDur(t.seconds)}</span></div>`).join('')}` : ''}
+    </div>`;
 }
 function renderStats(target, sub){
     const topics = sub.topics, total = topics.length;
     if (!total) { target.innerHTML = `<div class="card empty">Nessun argomento registrato</div>`; return; }
     const today = todayStr();
-    const acquired = topics.filter(t => t.interval >= 8).length;
-    const uncertain = topics.filter(t => t.interval > 1 && t.interval < 8).length;
+    const studied = topics.filter(t => !isTodo(t));
+    const acquired = studied.filter(t => t.interval >= 8).length;
+    const uncertain = studied.filter(t => t.interval > 1 && t.interval < 8).length;
     const critical = topics.filter(t => t.repeats >= 2).length;
-    const dueToday = topics.filter(t => t.next <= today).length;
+    const dueToday = studied.filter(t => t.next <= today).length;
     const examCount = topics.filter(t => t.triage === 3).length;
     const archived = topics.filter(t => t.archived).length;
+    const cov = coverage(sub);
     const pct = n => Math.round((n / total) * 100);
     const log = sessionCounts(sub), days = [], counts = [];
-    for (let i = 13; i >= 0; i--) {
-        const d = new Date(); d.setDate(d.getDate() - i);
-        days.push(d.getDate() + '/' + (d.getMonth() + 1));
-        counts.push(log[localDateStr(d)] || 0);
-    }
-    const maxCount = Math.max(...counts, 1), week = counts.slice(7).reduce((a, b) => a + b, 0);
-    const bars = counts.map((c, i) => `<div class="session-bar${i === 13 ? ' today' : ''}" style="height:${Math.max(3, Math.round((c / maxCount) * 60))}px;" title="${days[i]}: ${c} ripassi"></div>`).join('');
-    const labels = days.map((d, i) => `<div class="session-label">${i % 2 === 1 ? d : ''}</div>`).join('');
+    for (let i = 13; i >= 0; i--) { const iso = shiftDate(today, -i); days.push(iso); counts.push(log[iso] || 0); }
+    const week = counts.slice(7).reduce((a, b) => a + b, 0);
+    const lbl = i => { const d = parseLocalDate(days[i]); return `${d.getDate()}/${d.getMonth() + 1}`; };
     target.innerHTML = `
         <div class="card">
             <div class="section-label">Panoramica${archived ? `<span>${archived} archiviati</span>` : ''}</div>
             <div class="stat-grid">
-                <div class="stat-box"><div class="stat-number">${total}</div><div class="stat-label">Totale</div></div>
+                <div class="stat-box"><div class="stat-number">${cov.done}<span style="font-size:1rem;color:var(--text-dim);">/${total}</span></div><div class="stat-label">Studiati</div></div>
                 <div class="stat-box"><div class="stat-number" style="color:var(--warning)">${dueToday}</div><div class="stat-label">Da ripassare</div></div>
                 <div class="stat-box"><div class="stat-number" style="color:var(--success-bright)">${acquired}</div><div class="stat-label">Acquisiti</div></div>
                 <div class="stat-box"><div class="stat-number" style="color:var(--danger)">${critical}</div><div class="stat-label">Critici</div></div>
             </div>
         </div>
+        ${readinessCardHtml(sub)}
         <div class="card">
             <div class="section-label">Distribuzione</div>
-            ${[['Acquisiti (≥8g)',acquired,'var(--success-bright)'],['In consolidamento',uncertain,'var(--accent)'],['Priorità esame',examCount,'var(--exam-color)'],['Critici (≥2 Ripeti)',critical,'var(--danger)']].map(([l, n, c]) => `
+            ${[['Copertura programma',cov.done,'var(--sub)'],['Acquisiti (≥8g)',acquired,'var(--success-bright)'],['In consolidamento',uncertain,'var(--accent)'],['Priorità esame',examCount,'var(--exam-color)'],['Critici (≥2 Ripeti)',critical,'var(--danger)']].map(([l, n, c]) => `
             <div class="progress-bar-wrap">
                 <div class="progress-label"><span>${l}</span><span>${n}/${total} · ${pct(n)}%</span></div>
                 <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct(n)}%;background:${c}"></div></div>
             </div>`).join('')}
         </div>
+        ${loadForecastCard(data.activeSub)}
         <div class="card">
             <div class="section-label">Ripassi — ultime 2 settimane <span>${week} questa settimana</span></div>
-            <div class="session-bar-wrap">${bars}</div>
-            <div class="session-labels">${labels}</div>
+            ${barsHtml(counts, lbl, 13, v => `${v} ripassi`)}
         </div>
+        ${studyTimeCardHtml(sub)}
         <div class="card">
             <div class="section-label">Zona pericolosa</div>
-            <p class="muted" style="margin-bottom:4px;">Riporta tutti gli argomenti della materia allo stato iniziale. Lo storico dei feedback resta.</p>
+            <p class="muted" style="margin-bottom:4px;">Riporta tutti gli argomenti studiati della materia allo stato iniziale. Lo storico dei feedback resta.</p>
             <button class="btn btn-secondary" style="color:var(--danger);" onclick="resetAllTopics()">↺ Reset completo di tutti gli argomenti</button>
         </div>`;
 }
 
-// ── Pomodoro (basato sull'orario reale) ─────────────────────────────────────
+// ── Pomodoro (basato sull'orario reale, collegato a materia e argomento) ───
 const POMO_KEY = 'studyhub_pomo', POMO_SESS_KEY = 'studyhub_pomo_sessions';
 let pomoCfg = (() => { try { return JSON.parse(localStorage.getItem(POMO_KEY)) || {}; } catch (_) { return {}; } })();
 let pomodoroStudyMins = pomoCfg.study || 25, pomodoroBreakMins = pomoCfg.brk || 5;
 let pomodoroSeconds = pomodoroStudyMins * 60;
 let pomodoroRunning = false, pomodoroBreak = false, pomodoroTimer = null, pomoEndAt = 0;
+let pomoSub = null, pomoTopicId = '', pomoSegStart = 0;
 const BASE_TITLE = document.title;
 const POMO_R = 68, POMO_C = 2 * Math.PI * POMO_R;
 
@@ -1276,9 +1820,26 @@ function addPomoSession(){ localStorage.setItem(POMO_SESS_KEY, JSON.stringify({ 
 function pomoRemaining(){ return pomodoroRunning ? Math.max(0, Math.ceil((pomoEndAt - Date.now()) / 1000)) : pomodoroSeconds; }
 function pomoTotal(){ return (pomodoroBreak ? pomodoroBreakMins : pomodoroStudyMins) * 60; }
 function fmtMMSS(s){ return `${String(Math.floor(s / 60)).padStart(2,'0')}:${String(s % 60).padStart(2,'0')}`; }
+// Registra il tempo di studio del segmento appena concluso (per dispositivo, così la sync somma correttamente)
+function flushStudyTime(){
+    if (!pomodoroRunning || pomodoroBreak || !pomoSub) return;
+    const sec = Math.max(0, pomoSegStart - pomoRemaining());
+    pomoSegStart = pomoRemaining();
+    const sub = data.subjects[pomoSub];
+    if (!sub || sec < 5) return;
+    const iso = todayStr();
+    const dev = sub.timeLog[DEVICE_ID] = sub.timeLog[DEVICE_ID] || {};
+    dev[iso] = (dev[iso] || 0) + sec;
+    const t = pomoTopicId && sub.topics.find(x => x.id === pomoTopicId);
+    if (t) t.seconds = (t.seconds || 0) + sec;
+    save();
+}
 function renderPomodoro(){
     const rem = pomoRemaining(), offset = POMO_C * (1 - rem / pomoTotal());
     const hasYT = ytPlaylistUrl.trim().length > 0;
+    const subName = (pomodoroRunning && pomoSub && data.subjects[pomoSub]) ? pomoSub : data.activeSub;
+    const sub = data.subjects[subName];
+    if (sub && pomoTopicId && !sub.topics.some(t => t.id === pomoTopicId)) pomoTopicId = '';
     const stepper = (type, val, step) => `<div class="stepper"><button onclick="setPomoDuration('${type}',-${step})">−</button><span>${val}</span><button onclick="setPomoDuration('${type}',${step})">+</button></div>`;
     return `<div style="text-align:center;">
         <div class="pomo-ring">
@@ -1288,6 +1849,11 @@ function renderPomodoro(){
             </svg>
             <div class="pomo-time"><span id="pomoTimeText">${fmtMMSS(rem)}</span><span class="pomo-label">${pomodoroBreak ? 'Pausa' : 'Studio'}</span></div>
         </div>
+        ${sub ? `<div style="text-align:left;margin-bottom:12px;">
+            <div class="field-lbl">Stai studiando${subName !== data.activeSub ? ` · timer avviato su ${escHtml(subName)}` : ''}</div>
+            <select class="styled-select" onchange="setPomoTopic(this.value)"><option value="">Tutta la materia</option>${topicOptionsHtml(sub, null, pomoTopicId)}</select>
+            <div class="muted">Oggi su ${escHtml(subName)}: ${fmtDur(studySecondsOn(sub, todayStr()))}</div>
+        </div>` : ''}
         ${!pomodoroRunning && !pomodoroBreak ? `
         <div style="display:flex;gap:18px;margin-bottom:16px;align-items:center;justify-content:center;">
             <div><div class="field-lbl" style="margin-bottom:6px;">Studio (min)</div>${stepper('study', pomodoroStudyMins, 5)}</div>
@@ -1309,6 +1875,7 @@ function renderPomodoro(){
         </div>
     </div>`;
 }
+function setPomoTopic(v){ flushStudyTime(); pomoTopicId = v; }
 function updatePomoDisplay(){
     const rem = pomoRemaining();
     const tx = document.getElementById('pomoTimeText'), ring = document.getElementById('pomoRingProg');
@@ -1325,6 +1892,7 @@ function setPomoDuration(type, delta){
 }
 function pomoTick(){ if (pomoRemaining() <= 0) pomoFinishPhase(); else updatePomoDisplay(); }
 function pomoFinishPhase(){
+    flushStudyTime();
     clearInterval(pomodoroTimer); pomodoroRunning = false; ytPause();
     if (navigator.vibrate) { try { navigator.vibrate([200, 100, 200]); } catch (_) {} }
     if (!pomodoroBreak) { addPomoSession(); pomodoroBreak = true; pomodoroSeconds = pomodoroBreakMins * 60; showToast('✓ Sessione completata — pausa!'); }
@@ -1332,9 +1900,12 @@ function pomoFinishPhase(){
     refreshPomodoro();
 }
 function pomodoroToggle(){
-    if (pomodoroRunning) { pomodoroSeconds = pomoRemaining(); clearInterval(pomodoroTimer); pomodoroRunning = false; ytPause(); }
-    else {
+    if (pomodoroRunning) {
+        flushStudyTime();
+        pomodoroSeconds = pomoRemaining(); clearInterval(pomodoroTimer); pomodoroRunning = false; ytPause();
+    } else {
         if (pomodoroSeconds <= 0) pomodoroSeconds = pomoTotal();
+        if (!pomodoroBreak) { pomoSub = data.activeSub; pomoSegStart = pomodoroSeconds; }
         pomoEndAt = Date.now() + pomodoroSeconds * 1000; pomodoroRunning = true;
         if (ytPlaylistUrl && !pomodoroBreak) ensureYTPlayer(true);
         clearInterval(pomodoroTimer); pomodoroTimer = setInterval(pomoTick, 500);
@@ -1342,6 +1913,7 @@ function pomodoroToggle(){
     refreshPomodoro();
 }
 function pomodoroReset(){
+    flushStudyTime();
     clearInterval(pomodoroTimer); pomodoroRunning = false; pomodoroBreak = false;
     pomodoroSeconds = pomodoroStudyMins * 60; ytPause(); refreshPomodoro();
 }
@@ -1405,7 +1977,7 @@ function addNewSubject(){
     if (data.subjects[val]) { showToast('⚠ Materia già esistente'); return; }
     const used = new Set(Object.values(data.subjects).map(s => s.color));
     const color = COLORS.find(c => !used.has(c)) || COLORS[Object.keys(data.subjects).length % COLORS.length];
-    data.subjects[val] = { topics:[], color, examDate:null, examModeManual:false, examModeOverride:false, sessionLog:{}, todos:[], notepad:'', deletedTopics:{} };
+    data.subjects[val] = { topics:[], color, examDate:null, examModeManual:false, examModeOverride:false, sessionLog:{}, todos:[], notepad:'', deletedTopics:{}, algo:'fsrs', retention:0.9, examBoost:true };
     inp.value = '';
     closeModal('modalNewSubject');
     data.activeTab = 'study';
@@ -1414,18 +1986,43 @@ function addNewSubject(){
 function openEditSubjectModal(name){
     document.getElementById('inEditSubName').value = name;
     document.getElementById('editSubOldName').value = name;
+    renderSubSettings();
     openModal('modalEditSubject');
 }
+function editingSub(){ return data.subjects[document.getElementById('editSubOldName').value]; }
+function renderSubSettings(){
+    const s = editingSub(), box = document.getElementById('subSettingsBody');
+    if (!s || !box) return;
+    const fsrs = subAlgo(s) === 'fsrs';
+    const chip = (on, label, fn) => `<button class="chip${on ? ' on' : ''}" onclick="${fn}">${label}</button>`;
+    const lbl = (text, key) => `<div class="set-lbl"><span>${text}${helpBtn(key)}</span></div>`;
+    box.innerHTML = `
+        <div class="set-sec" style="padding-top:16px;">${lbl('Colore', 'color')}
+            <div class="seg">${COLORS.map(c => `<button class="chip${s.color === c ? ' on' : ''}" style="flex:0 0 auto;width:38px;height:32px;padding:0;" onclick="setSubColor('${c}')"><span class="tab-dot" style="background:${c};width:12px;height:12px;"></span></button>`).join('')}</div></div>
+        <div class="set-sec">${lbl('Algoritmo di ripasso', 'algo')}
+            <div class="seg">${chip(fsrs, 'FSRS (consigliato)', "setSubAlgo('fsrs')")}${chip(!fsrs, 'Anki classico', "setSubAlgo('sm2')")}</div>
+            <div class="set-hint">Se cambi, le date già fissate restano: il nuovo metodo vale dal prossimo ripasso.</div></div>
+        ${fsrs ? `<div class="set-sec">${lbl('Ritenzione desiderata', 'retention')}
+            <div class="seg">${[0.85, 0.9, 0.95].map(v => chip(s.retention === v, Math.round(v * 100) + '%', `setSubRetention(${v})`)).join('')}</div>
+            <div class="set-hint">90% va bene quasi sempre.</div></div>
+        <div class="set-sec">${lbl("Più ripassi prima dell'esame", 'examBoost')}
+            <div class="seg">${chip(s.examBoost !== false, 'Attivo', s.examBoost !== false ? '' : 'toggleSubExamBoost()')}${chip(s.examBoost === false, 'Disattivato', s.examBoost === false ? '' : 'toggleSubExamBoost()')}</div></div>` : ''}`;
+}
+function setSubAlgo(v){ const s = editingSub(); if (!s) return; s.algo = v; save(); renderSubSettings(); render(); }
+function setSubRetention(v){ const s = editingSub(); if (!s) return; s.retention = v; save(); renderSubSettings(); render(); }
+function toggleSubExamBoost(){ const s = editingSub(); if (!s) return; s.examBoost = s.examBoost === false; save(); renderSubSettings(); render(); }
+function setSubColor(c){ const s = editingSub(); if (!s) return; s.color = c; save(); renderSubSettings(); render(); }
 function confirmRenameSubject(){
     const oldName = document.getElementById('editSubOldName').value;
     const newName = document.getElementById('inEditSubName').value.trim();
-    if (!newName || newName === oldName) { closeModal('modalEditSubject'); return; }
+    if (!newName || newName === oldName) return;
     if (data.subjects[newName]) { showToast('⚠ Nome già esistente'); return; }
     const ns = {};
     Object.keys(data.subjects).forEach(k => { ns[k === oldName ? newName : k] = data.subjects[k]; });
     data.subjects = ns;
     if (data.activeSub === oldName) data.activeSub = newName;
-    save(); closeModal('modalEditSubject'); render(); showToast('✓ Rinominata');
+    document.getElementById('editSubOldName').value = newName;
+    save(); render(); showToast('✓ Rinominata');
 }
 function confirmDeleteSubject(){
     const name = document.getElementById('editSubOldName').value, s = data.subjects[name];
@@ -1470,8 +2067,8 @@ function confirmManualDate(){
     const iso = parseDateInput(document.getElementById('inNewDate').value);
     if (!t) { closeModal('modalEditDate'); return; }
     if (!iso) { showToast('⚠ Scegli una data'); return; }
-    t.next = iso; delete t.requeueAt;
-    save(); closeModal('modalEditDate'); refreshTab();
+    t.next = iso; delete t.requeueAt; delete t.status;
+    save(); closeModal('modalEditDate'); refreshCurrent();
 }
 
 // ── CSV / Excel ─────────────────────────────────────────────────────────────
@@ -1561,13 +2158,7 @@ function handleImport(event){
         try { imp = JSON.parse(e.target.result); if (!imp || typeof imp.subjects !== 'object') throw 0; }
         catch (_) { showToast('⚠ File non valido'); return; }
         closeModal('modalSettings');
-        confirmDialog({ title:'Sostituire i dati?', msg:`Il backup contiene ${plural(Object.keys(imp.subjects).length, 'materia', 'materie')} e sostituirà tutti i dati attuali, anche sugli altri dispositivi dopo la sync.`, ok:'Importa' }, () => {
-            const snap = snapshot(), oldNames = Object.keys(data.subjects);
-            data = normalizeData(imp);
-            _sig = {}; oldNames.forEach(nm => { if (!data.subjects[nm]) _sig[nm] = { m:'#', t:{} }; });
-            _extSig = '#';
-            save(); render(); showToast('✓ Backup importato', snap);
-        });
+        confirmDialog({ title:'Sostituire i dati?', msg:`Il backup contiene ${plural(Object.keys(imp.subjects).length, 'materia', 'materie')} e sostituirà tutti i dati attuali, anche sugli altri dispositivi dopo la sync.`, ok:'Importa' }, () => replaceAllData(imp, '✓ Backup importato'));
     };
     r.readAsText(file);
 }
@@ -1590,7 +2181,7 @@ function mergeSubject(L, R){
     const order = base.topics.map(t => t.id);
     if (other) other.topics.forEach(t => { if (!order.includes(t.id)) order.push(t.id); });
     const topics = order.map(id => byId[id]).filter(t => (t._mod || 0) > (dt[t.id] || 0));
-    return { ...base, topics, deletedTopics: pruneTombs(dt, new Set(topics.map(t => t.id))) };
+    return { ...base, topics, deletedTopics: pruneTombs(dt, new Set(topics.map(t => t.id))), timeLog: mergeTimeLog(L && L.timeLog, R && R.timeLog) };
 }
 function subjectNewest(s){ return Math.max(s._mod || 0, ...s.topics.map(t => t._mod || 0)); }
 function mergeData(local, remoteRaw){
@@ -1665,9 +2256,10 @@ function openSyncModal(){
         <div class="sync-info-row"><span class="sync-status-dot connected"></span><span class="sync-info-text">${escHtml(syncUrl.length > 54 ? syncUrl.substring(0, 54) + '…' : syncUrl)}</span></div>
         <p class="muted" style="margin-bottom:16px;">Le modifiche vengono unite argomento per argomento: puoi ripassare la stessa materia su telefono e PC senza perdere nulla. Sync automatica 20 s dopo ogni modifica, ogni 5 minuti e al ritorno nell'app.${lastSyncAt ? `<br>Ultima sync: ${new Date(lastSyncAt).toLocaleTimeString('it-IT', { hour:'2-digit', minute:'2-digit' })}` : ''}</p>
         <button class="btn btn-primary" style="margin-bottom:8px;" onclick="closeModal('modalSync');doSync(false)">↻ Sincronizza ora</button>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;"><button class="btn btn-secondary" style="margin:0;" onclick="openVersions()">🕘 Versioni salvate</button>${helpBtn('versions')}</div>
         <div class="btn-row"><button class="btn btn-secondary" onclick="changeSyncUrl()">Cambia URL</button><button class="btn btn-secondary" onclick="disconnectSync()">Disconnetti</button></div>
         <button class="btn btn-secondary" onclick="closeModal('modalSync')">Chiudi</button>` : `
-        <p class="muted" style="margin-bottom:14px;">Incolla l'URL della Web App di Google Apps Script (lo script è in Impostazioni).</p>
+        <p class="muted" style="margin-bottom:14px;">Serve solo se usi l'app su più dispositivi. ${helpBtn('sync')}<br>Incolla qui l'indirizzo dello script Google (lo script è in Impostazioni).</p>
         <input type="text" id="inSyncUrl" placeholder="https://script.google.com/macros/s/…/exec" data-enter="saveSyncUrl">
         <div class="modal-btns"><button class="btn btn-primary" onclick="saveSyncUrl()">Connetti</button><button class="btn btn-secondary" onclick="closeModal('modalSync')">Annulla</button></div>`;
     openModal('modalSync');
@@ -1688,21 +2280,84 @@ function disconnectSync(){
     clearTimeout(_autoSyncTimer);
     closeModal('modalSync'); updateSyncBtn('none'); showToast('✓ Disconnesso');
 }
+// ── Versioni salvate nel foglio Google (script v3) ──────────────────────────
+async function openVersions(){
+    const body = document.getElementById('syncModalBody');
+    const back = `<button class="btn btn-secondary" onclick="openSyncModal()">Indietro</button>`;
+    body.innerHTML = `<p class="muted">Carico le versioni…</p>`;
+    try {
+        const res = await fetch(`${syncUrl}?action=versions&t=${Date.now()}`, { cache:'no-store' });
+        const j = await res.json();
+        if (j.error) throw new Error(j.error === 'unknown action' ? 'Lo script non conserva ancora le versioni: aggiornalo alla v3 (Impostazioni → Script).' : j.error);
+        const vs = (j.versions || []).slice().reverse();
+        body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Lo script conserva l'ultima versione di ogni giorno in cui hai sincronizzato (fino a 30). Ripristinarne una sostituisce i dati su tutti i dispositivi; puoi annullare subito dopo.</p>
+            ${vs.length ? vs.map(v => `<div class="ver-row"><span>${fmtDateLong(v.day)} <span class="muted">· ${v.at ? new Date(v.at).toLocaleTimeString('it-IT', { hour:'2-digit', minute:'2-digit' }) : ''} · ${Math.max(1, Math.round(v.size / 1024))} KB</span></span><button class="chip" onclick="restoreVersion(${Number(v.row)})">Ripristina</button></div>`).join('')
+                        : '<p class="muted">Nessuna versione ancora: la prima viene salvata alla prossima sincronizzazione.</p>'}
+            ${back}`;
+    } catch (e) {
+        body.innerHTML = `<p class="muted" style="margin-bottom:12px;">⚠ ${escHtml(e.message || 'Errore di rete')}</p>${back}`;
+    }
+}
+async function restoreVersion(row){
+    try {
+        const res = await fetch(`${syncUrl}?action=version&row=${row}&t=${Date.now()}`, { cache:'no-store' });
+        const imp = await res.json();
+        if (imp.error) throw new Error(imp.error);
+        if (!imp || typeof imp.subjects !== 'object') throw new Error('versione non valida');
+        closeModal('modalSync');
+        confirmDialog({ title:'Ripristinare questa versione?', msg:`Contiene ${plural(Object.keys(imp.subjects).length, 'materia', 'materie')}. Sostituirà i dati attuali su tutti i dispositivi sincronizzati.`, ok:'Ripristina', danger:false }, () => {
+            replaceAllData(imp, '✓ Versione ripristinata');
+            doSync(true);
+        });
+    } catch (e) { showToast('⚠ ' + (e.message || 'Errore di rete')); }
+}
+function replaceAllData(imp, msg){
+    const snap = snapshot(), oldNames = Object.keys(data.subjects);
+    const ui = { isGlobal: data.isGlobal, activeSub: data.activeSub, activeTab: data.activeTab, globalView: data.globalView };
+    data = normalizeData(imp);
+    Object.assign(data, ui);
+    data = normalizeData(data);
+    _sig = {}; oldNames.forEach(nm => { if (!data.subjects[nm]) _sig[nm] = { m:'#', t:{} }; });
+    _extSig = '#';
+    save(); render(); showToast(msg, snap);
+}
+function mergeTimeLog(a, b){
+    const out = {};
+    [a || {}, b || {}].forEach(src => Object.entries(src).forEach(([dev, days]) => {
+        const o = out[dev] = out[dev] || {};
+        Object.entries(days || {}).forEach(([d, v]) => { o[d] = Math.max(o[d] || 0, Number(v) || 0); });
+    }));
+    return out;
+}
 
 // ── Impostazioni ────────────────────────────────────────────────────────────
-const APPS_SCRIPT_CODE = `// Study Hub — sync v2 (dati divisi in più celle: niente più limite 50.000 caratteri)
+const APPS_SCRIPT_CODE = `// Study Hub — sync v3: dati divisi in più celle + una versione al giorno (ultimi 30 giorni)
 const SHEET_NAME = 'StudyHub';
+const VERSIONS_SHEET = 'Versioni';
 const CHUNK = 45000;
+const KEEP_VERSIONS = 30;
 
 function doGet(e) {
-  if (e && e.parameter && e.parameter.action === 'read') {
-    const sheet = getSheet();
-    const last = sheet.getLastRow();
-    if (last < 1) return out('{}');
-    const txt = sheet.getRange(1, 1, last, 1).getValues()
-      .map(function (r) { const v = String(r[0]); return v.charAt(0) === '~' ? v.slice(1) : v; })
-      .join('');
-    return out(txt || '{}');
+  const p = (e && e.parameter) || {};
+  if (p.action === 'read') return out(readMain());
+  if (p.action === 'versions') {
+    const sh = getSheet(VERSIONS_SHEET);
+    const last = sh.getLastRow();
+    const list = [];
+    if (last >= 1) {
+      sh.getRange(1, 1, last, 3).getValues().forEach(function (r, i) {
+        if (r[0] !== '') list.push({ row: i + 1, day: unmark(r[0]), at: unmark(r[1]), size: Number(unmark(r[2])) || 0 });
+      });
+    }
+    return out(JSON.stringify({ versions: list }));
+  }
+  if (p.action === 'version') {
+    const sh = getSheet(VERSIONS_SHEET);
+    const row = Number(p.row);
+    if (!row || row > sh.getLastRow()) return out(JSON.stringify({ error: 'versione non trovata' }));
+    const cols = sh.getLastColumn();
+    const cells = cols > 3 ? sh.getRange(row, 4, 1, cols - 3).getValues()[0] : [];
+    return out(cells.filter(function (c) { return c !== ''; }).map(unmark).join('') || '{}');
   }
   return out(JSON.stringify({ error: 'unknown action' }));
 }
@@ -1713,13 +2368,14 @@ function doPost(e) {
   try {
     const body = e.postData.contents;
     JSON.parse(body); // valida
-    const sheet = getSheet();
+    const sheet = getSheet(SHEET_NAME);
     const rows = [];
     for (let i = 0; i < body.length; i += CHUNK) rows.push(['~' + body.substring(i, i + CHUNK)]);
     sheet.clearContents();
     const range = sheet.getRange(1, 1, rows.length, 1);
     range.setNumberFormat('@');
     range.setValues(rows);
+    try { saveVersion(body); } catch (verr) { console.error(verr); }
     return out(JSON.stringify({ ok: true, chunks: rows.length }));
   } catch (err) {
     return out(JSON.stringify({ error: String(err && err.message || err) }));
@@ -1728,9 +2384,35 @@ function doPost(e) {
   }
 }
 
-function getSheet() {
+function saveVersion(body) {
+  const sh = getSheet(VERSIONS_SHEET);
+  const day = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const row = ['~' + day, '~' + new Date().toISOString(), '~' + body.length];
+  for (let i = 0; i < body.length; i += CHUNK) row.push('~' + body.substring(i, i + CHUNK));
+  const last = sh.getLastRow();
+  let target = last + 1;
+  if (last >= 1 && unmark(sh.getRange(last, 1).getValue()) === day) target = last;
+  if (sh.getMaxColumns() < row.length) sh.insertColumnsAfter(sh.getMaxColumns(), row.length - sh.getMaxColumns());
+  if (target <= last && sh.getLastColumn() > 0) sh.getRange(target, 1, 1, sh.getLastColumn()).clearContent();
+  const range = sh.getRange(target, 1, 1, row.length);
+  range.setNumberFormat('@');
+  range.setValues([row]);
+  const rows = sh.getLastRow();
+  if (rows > KEEP_VERSIONS) sh.deleteRows(1, rows - KEEP_VERSIONS);
+}
+
+function readMain() {
+  const sheet = getSheet(SHEET_NAME);
+  const last = sheet.getLastRow();
+  if (last < 1) return '{}';
+  return sheet.getRange(1, 1, last, 1).getValues().map(function (r) { return unmark(r[0]); }).join('') || '{}';
+}
+
+function unmark(v) { v = String(v); return v.charAt(0) === '~' ? v.slice(1) : v; }
+
+function getSheet(name) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  return ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
+  return ss.getSheetByName(name) || ss.insertSheet(name);
 }
 
 function out(s) {
@@ -1740,22 +2422,30 @@ function openSettings(){ renderSettings(); openModal('modalSettings'); }
 function renderSettings(){
     const light = document.body.classList.contains('light');
     const seg = (key, val, label, on) => `<button class="chip${on ? ' on' : ''}" onclick="setSetting('${key}','${val}')">${label}</button>`;
+    const lbl = (text, key) => `<div class="set-lbl"><span>${text}${key ? helpBtn(key) : ''}</span></div>`;
     document.getElementById('settingsBody').innerHTML = `
-        <div class="set-sec"><div class="set-lbl">Tema</div><div class="seg">${seg('theme','dark','○ Scuro', !light)}${seg('theme','light','◐ Chiaro', light)}</div></div>
-        <div class="set-sec"><div class="set-lbl">Orientamento schermo</div>
-            <div class="seg">${seg('orientation','any','Automatico', settings.orientation === 'any')}${seg('orientation','portrait','Verticale', settings.orientation === 'portrait')}${seg('orientation','landscape','Orizzontale', settings.orientation === 'landscape')}</div>
-            <div class="set-hint">Vale per questo dispositivo. Il blocco funziona con l'app installata (Android); su PC non ha effetto.</div></div>
-        <div class="set-sec"><div class="set-lbl">Archivia impegni passati dopo</div>
-            <div class="seg">${[7,30,90].map(n => seg('archiveDays', n, n + ' giorni', settings.archiveDays === n)).join('')}${seg('archiveDays', 0, 'Mai', !settings.archiveDays)}</div>
-            <div class="set-hint">Gli impegni archiviati non compaiono più nel calendario ma restano salvati: li ritrovi con la ricerca dell'Agenda.</div></div>
-        <div class="set-sec"><div class="set-lbl">Dati</div>
-            <button class="btn btn-secondary" style="margin-top:0;" onclick="openSyncModal()">☁ Sincronizzazione${syncUrl ? ' · collegata' : ''}</button>
-            <div class="btn-row" style="margin-top:8px;">
-                <button class="btn btn-secondary" onclick="document.getElementById('importFileInput').click()">⬆ Importa backup</button>
-                <button class="btn btn-secondary" onclick="exportData()">⬇ Esporta backup</button>
+        <div class="set-sec"><button class="btn btn-primary" style="margin-top:0;" onclick="openTutorial()">📖 Guida rapida</button></div>
+        <div class="set-sec">${lbl('Tema')}<div class="seg">${seg('theme','dark','○ Scuro', !light)}${seg('theme','light','◐ Chiaro', light)}</div></div>
+        <div class="set-sec">${lbl('I tuoi dati', 'backup')}
+            <div class="btn-row">
+                <button class="btn btn-secondary" style="margin-top:0;" onclick="exportData()">⬇ Esporta backup</button>
+                <button class="btn btn-secondary" style="margin-top:0;" onclick="document.getElementById('importFileInput').click()">⬆ Importa backup</button>
             </div>
-            <button class="btn btn-secondary" onclick="openCsvImport()">📅 Importa CSV / Excel</button></div>
-        <div class="set-sec"><div class="set-lbl">Script Google Apps Script (v2) <span class="link-action" onclick="toggleScriptBox()">mostra / nascondi</span></div>
+            <div class="set-hint">Fai un backup ogni tanto: i dati sono salvati solo su questo dispositivo.</div></div>
+        <div class="set-sec">${lbl('Sincronizzazione', 'sync')}
+            <button class="btn btn-secondary" style="margin-top:0;" onclick="openSyncModal()">☁ ${syncUrl ? 'Collegata — gestisci' : 'Configura'}</button>
+            <div class="set-hint">Solo se usi l'app su più dispositivi.</div></div>
+        <div class="set-sec">${lbl('Orientamento schermo', 'orientation')}
+            <div class="seg">${seg('orientation','any','Automatico', settings.orientation === 'any')}${seg('orientation','portrait','Verticale', settings.orientation === 'portrait')}${seg('orientation','landscape','Orizzontale', settings.orientation === 'landscape')}</div></div>
+        <div class="set-sec">${lbl('Archivia impegni passati dopo', 'archiveDays')}
+            <div class="seg">${[7,30,90].map(n => seg('archiveDays', n, n + ' giorni', settings.archiveDays === n)).join('')}${seg('archiveDays', 0, 'Mai', !settings.archiveDays)}</div></div>
+        <div class="set-sec">${lbl('Bilanciamento del carico', 'loadBalance')}
+            <div class="seg">${seg('loadBalance', 1, 'Attivo', settings.loadBalance)}${seg('loadBalance', 0, 'Disattivato', !settings.loadBalance)}</div></div>
+        <div class="set-sec">${lbl('Limite ripassi al giorno', 'dailyMax')}
+            <div class="seg">${seg('dailyMax', 0, 'Nessuno', !settings.dailyMax)}${[20, 40, 60, 100].map(n => seg('dailyMax', n, String(n), settings.dailyMax === n)).join('')}</div></div>
+        <div class="set-sec">${lbl('Importa da Excel / CSV', 'csv')}
+            <button class="btn btn-secondary" style="margin-top:0;" onclick="openCsvImport()">📅 Importa CSV / Excel</button></div>
+        <div class="set-sec"><div class="set-lbl"><span>Script Google (v3)${helpBtn('script')}</span><span class="link-action" onclick="toggleScriptBox()">mostra / nascondi</span></div>
             <div id="scriptBox" class="hidden">
                 <div class="csv-help">Incollalo su <a href="https://script.google.com" target="_blank" rel="noopener" style="color:var(--accent)">script.google.com</a> e distribuiscilo come App Web (esegui come: Me · accesso: Chiunque). Per aggiornare uno script esistente: Gestisci deployment → Modifica → Nuova versione.</div>
                 <textarea readonly onclick="this.select()" class="mono" style="font-size:.62rem;min-height:170px;color:var(--text-mid);">${escHtml(APPS_SCRIPT_CODE)}</textarea>
@@ -1765,9 +2455,69 @@ function setSetting(key, val){
     if (key === 'theme') setTheme(val === 'light');
     else if (key === 'orientation') { settings.orientation = val; saveSettings(); applyOrientation(true); }
     else if (key === 'archiveDays') { settings.archiveDays = Number(val); saveSettings(); render(); }
+    else if (key === 'loadBalance') { settings.loadBalance = Number(val) === 1; saveSettings(); render(); }
+    else if (key === 'dailyMax') { settings.dailyMax = Number(val); saveSettings(); render(); }
     renderSettings();
 }
 function toggleScriptBox(){ const box = document.getElementById('scriptBox'); if (box) box.classList.toggle('hidden'); }
+// ── Guida rapida & aiuto "?" ────────────────────────────────────────────────
+const TUTORIAL_KEY = 'studyhub_tutorial_done';
+const TUTORIAL = [
+    { icon:'👋', title:'Benvenuta!', html:`Study Hub ti dice <b>cosa ripassare e quando</b>, così non dimentichi quello che hai studiato.<br><br>Ti bastano 2 minuti per capire come funziona.` },
+    { icon:'📲', title:'Mettila sulla schermata Home', html:`Così si apre come una vera app e i tuoi dati restano al sicuro.<br><br><b>Android (Chrome):</b> menu <b>⋮</b> in alto a destra → <b>Installa app</b> (o <b>Aggiungi a schermata Home</b>).<br><b>iPhone (Safari):</b> tasto <b>Condividi</b> ⬆ → <b>Aggiungi alla schermata Home</b>.` },
+    { icon:'➕', title:'1. Crea una materia', html:`Tocca il <b>+</b> nella barra in alto e scrivi il nome, per esempio “Anatomia”.<br><br>Ogni materia ha la sua scheda in alto.` },
+    { icon:'📝', title:'2. Dopo aver studiato', html:`Apri la materia → scheda <b>Studio</b> → scrivi l'argomento che hai studiato → <b>Pianifica</b>.<br><br>Il primo ripasso sarà <b>domani</b>.<br><br>Hai il programma d'esame? Usa <b>+ Incolla programma</b> e spunta gli argomenti man mano.` },
+    { icon:'🔁', title:'3. Ogni giorno: Ripasso', html:`Apri la scheda <b>Ripasso</b>. Ripeti l'argomento a mente, poi scegli:<br><br>
+        <span style="color:var(--danger)"><b>Ripeti</b></span> — non me lo ricordavo<br>
+        <span style="color:var(--text-mid)"><b>Incerto</b></span> — ricordato a fatica<br>
+        <span style="color:var(--accent)"><b>Da consolidare</b></span> — ricordato bene<br>
+        <span style="color:var(--success-bright)"><b>Buono</b></span> — facilissimo<br><br>
+        L'app decide da sola quando riproportelo.` },
+    { icon:'📅', title:'4. Agenda', html:`Tocca <b>Agenda</b> in alto a sinistra per vedere ripassi e impegni di tutte le materie.<br><br>Dalla vista <b>Ripasso</b> dell'Agenda fai i ripassi di tutte le materie insieme.` },
+    { icon:'🎯', title:"5. La data dell'esame", html:`Nella materia tocca <b>Imposta data esame</b>.<br><br>Vedrai il conto alla rovescia e i ripassi si organizzeranno per arrivare pronta. Nella scheda <b>Stat</b> trovi quanto sei preparata.` },
+    { icon:'💾', title:'6. I tuoi dati', html:`I dati sono salvati <b>solo su questo telefono</b>.<br><br>Ogni tanto apri <b>⚙ Impostazioni</b> → <b>Esporta backup</b>: se cambi telefono, con <b>Importa backup</b> recuperi tutto.` },
+    { icon:'✨', title:'Ultimi consigli', html:`Hai toccato qualcosa per sbaglio? In basso compare <b>Annulla</b>.<br><br>Nelle impostazioni, il tasto <span class="help-btn" style="pointer-events:none;">?</span> spiega cosa fa ogni opzione.<br><br>Puoi rivedere questa guida da <b>⚙ Impostazioni → Guida rapida</b>.` }
+];
+let _tutStep = 0;
+function openTutorial(){ _tutStep = 0; closeModal('modalSettings'); renderTutorial(); openModal('modalTutorial'); }
+function renderTutorial(){
+    const s = TUTORIAL[_tutStep], last = _tutStep === TUTORIAL.length - 1;
+    document.getElementById('tutBody').innerHTML = `
+        <div class="tut-icon">${s.icon}</div>
+        <div class="modal-title" style="text-align:center;margin-bottom:12px;">${s.title}</div>
+        <div class="tut-text">${s.html}</div>
+        <div class="tut-dots">${TUTORIAL.map((_, i) => `<span class="${i === _tutStep ? 'on' : ''}"></span>`).join('')}</div>
+        <div class="modal-btns">
+            ${_tutStep ? `<button class="btn btn-secondary" onclick="tutGo(-1)">Indietro</button>` : `<button class="btn btn-secondary" onclick="finishTutorial()">Salta</button>`}
+            <button class="btn btn-primary" onclick="${last ? 'finishTutorial()' : 'tutGo(1)'}">${last ? 'Inizia' : 'Avanti'}</button>
+        </div>`;
+}
+function tutGo(d){ _tutStep = Math.max(0, Math.min(TUTORIAL.length - 1, _tutStep + d)); renderTutorial(); }
+function finishTutorial(){ localStorage.setItem(TUTORIAL_KEY, '1'); closeModal('modalTutorial'); }
+
+const HELP = {
+    algo:      { t:'Algoritmo di ripasso', b:`È il “metodo” con cui l'app decide <b>quando</b> riproporti un argomento.<br><br><b>FSRS</b> (consigliato): calcola quanto ricordi ogni argomento e te lo ripropone poco prima che tu lo dimentichi.<br><br><b>Anki classico</b>: il metodo tradizionale dell'app Anki. Più prevedibile, un po' meno preciso.<br><br>Nel dubbio, lascia <b>FSRS</b>. Puoi cambiarlo quando vuoi senza perdere nulla.` },
+    retention: { t:'Ritenzione desiderata', b:`Quanto vuoi essere sicura di ricordare gli argomenti.<br><br><b>90%</b> — va bene quasi sempre.<br><b>95%</b> — ricordi di più, ma ripassi più spesso.<br><b>85%</b> — ripassi meno, ma rischi di dimenticare qualcosa.` },
+    examBoost: { t:'95% in modalità esame', b:`Nell'ultima settimana prima dell'esame (o quando attivi tu la modalità esame) i ripassi diventano più frequenti, così arrivi più preparata. Consigliato lasciarlo attivo.` },
+    color:     { t:'Colore', b:`Il colore della materia nelle schede e nel calendario. Serve solo a riconoscerla a colpo d'occhio.` },
+    orientation:{ t:'Orientamento schermo', b:`Blocca lo schermo in verticale o in orizzontale, così non gira quando inclini il telefono.<br><br>Funziona solo se hai messo l'app sulla schermata Home (Android). Su computer non serve.` },
+    archiveDays:{ t:'Archivia impegni passati', b:`Gli impegni già passati spariscono dal calendario dopo questi giorni, così resta in ordine.<br><br><b>Non vengono cancellati</b>: li ritrovi scrivendo nella barra di ricerca dell'Agenda.` },
+    loadBalance:{ t:'Bilanciamento del carico', b:`Evita giornate con troppi ripassi: quando due giorni vanno bene uguale, l'app sceglie quello più libero.<br><br>Lascialo <b>Attivo</b>.` },
+    dailyMax:  { t:'Limite ripassi al giorno', b:`Il numero massimo di ripassi che vuoi in un giorno. Se un giorno è già pieno, l'app anticipa un po' alcuni ripassi (non li rimanda mai, per non farti dimenticare).<br><br><b>Nessuno</b> = nessun limite. Se non sai, lascia così.` },
+    sync:      { t:'Sincronizzazione', b:`Serve <b>solo</b> se usi l'app su più dispositivi (per esempio telefono e computer) e vuoi gli stessi dati su entrambi.<br><br>Richiede un foglio Google da preparare una volta: fatti aiutare da chi ti ha passato l'app.<br><br>Se usi un solo telefono, <b>non ti serve</b>: basta fare ogni tanto il backup.` },
+    backup:    { t:'Backup', b:`<b>Esporta backup</b> scarica un file con tutti i tuoi dati. Conservalo (per esempio su Google Drive o inviatelo per email).<br><br><b>Importa backup</b> carica quel file e riporta tutto com'era: utile se cambi telefono o se il browser cancella i dati.<br><br>Fallo ogni settimana o due.` },
+    csv:       { t:'Importa da Excel', b:`Per aggiungere tanti impegni o argomenti in una volta da un foglio Excel.<br><br>Il foglio deve avere le colonne: <b>Titolo</b>, <b>Data</b> (GG/MM/AAAA) e, se vuoi, <b>Ora</b>. In Excel: File → Salva come → <b>CSV</b>.` },
+    script:    { t:'Script Google', b:`È il codice da copiare in Google per attivare la sincronizzazione. Ti serve solo se la stai configurando: altrimenti ignoralo.` },
+    versions:  { t:'Versioni salvate', b:`Con la sincronizzazione attiva, Google conserva una copia dei tuoi dati per ogni giorno (fino a 30 giorni).<br><br>Se qualcosa va storto, scegli un giorno e tocca <b>Ripristina</b> per tornare a com'era.` }
+};
+function helpBtn(key){ return `<button class="help-btn" onclick="event.stopPropagation();showHelp('${key}')" aria-label="Aiuto">?</button>`; }
+function showHelp(key){
+    const h = HELP[key];
+    if (!h) return;
+    document.getElementById('helpTitle').textContent = h.t;
+    document.getElementById('helpBody').innerHTML = h.b;
+    openModal('modalHelp');
+}
 
 // ── Eventi globali ──────────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
@@ -1782,11 +2532,14 @@ document.addEventListener('keydown', e => {
         if (typeof fn === 'function') fn();
         return;
     }
-    if (!data.isGlobal && data.activeTab === 'ripasso' && !isTyping() && !anyModalOpen() && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const inReview = data.isGlobal ? data.globalView === 'mixed' && !agendaQuery.trim() : data.activeTab === 'ripasso';
+    if (inReview && !isTyping() && !anyModalOpen() && !e.ctrlKey && !e.metaKey && !e.altKey) {
         const map = { '1':'ripeti', '2':'incerto', '3':'consolida', '4':'buono' };
         if (map[e.key]) {
-            const sub = data.subjects[data.activeSub], first = sub && dueTopics(sub, data.activeSub)[0];
-            if (first) { e.preventDefault(); rate(first.id, map[e.key]); }
+            let first = null;
+            if (data.isGlobal) { const x = mixedQueue()[0]; if (x) first = { id: x.t.id, name: x.name }; }
+            else { const sub = data.subjects[data.activeSub], t = sub && dueTopics(sub, data.activeSub)[0]; if (t) first = { id: t.id, name: data.activeSub }; }
+            if (first) { e.preventDefault(); rate(first.id, map[e.key], first.name); }
         }
     }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !isTyping() && _undoSnap) { e.preventDefault(); undoLast(); }
@@ -1813,6 +2566,10 @@ function init(){
     render();
     updateSyncBtn(getSyncStatus());
     applyOrientation(false);
+    if (!localStorage.getItem(TUTORIAL_KEY)) {
+        if (Object.keys(data.subjects).length) localStorage.setItem(TUTORIAL_KEY, '1');   // chi usa già l'app non la rivede
+        else setTimeout(openTutorial, 400);
+    }
     if (_loadError) showToast('⚠ Dati locali illeggibili — copia salvata, ripristina da sync o backup');
     if (syncUrl) setTimeout(() => doSync(true), 1500);
     setInterval(() => {
@@ -1826,3 +2583,4 @@ function init(){
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
 else init();
+function saveSubTopicTodo(){ saveSubTopic(false); }

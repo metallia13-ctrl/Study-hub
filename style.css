@@ -321,3 +321,36 @@ body.light .t-dot.active{border-color:rgba(0,0,0,.18);}
 @keyframes fade{from{opacity:0}}
 @keyframes rise{from{opacity:0;transform:translateY(10px)}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
+
+/* ── v13: programma, albero, domande, preparazione esame ─────────────── */
+.crumb{font-size:.56rem;letter-spacing:1.1px;text-transform:uppercase;color:var(--text-dim);margin-bottom:5px;font-weight:700;line-height:1.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.q-list{margin:14px 0 2px 20px;font-size:.88rem;line-height:1.55;color:var(--text);}
+.q-list li{margin-bottom:5px;padding-left:2px;}
+.q-list li::marker{color:var(--sub);font-family:var(--serif);}
+.tr-kids{font-size:.58rem;color:var(--text-mid);padding:2px 7px;border:1px solid var(--border);cursor:pointer;white-space:nowrap;font-weight:700;}
+.tr-kids:hover{color:var(--accent);border-color:var(--accent-line);}
+.tr-due.todo{color:var(--warning);}
+.todo-topic{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-sub);font-size:.82rem;}
+.todo-topic>span{flex:1;min-width:0;}
+.todo-topic:last-of-type{border-bottom:none;}
+.todo-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 0 12px;color:var(--warning);font-size:.64rem;letter-spacing:1.4px;text-transform:uppercase;font-weight:700;}
+.ready-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-sub);font-size:.8rem;}
+.ready-row:last-child{border-bottom:none;}
+.ready-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ready-pct{font-family:var(--serif);font-size:1rem;min-width:44px;text-align:right;}
+.ver-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-sub);font-size:.8rem;}
+.review-card .notes-toggle{margin-top:12px;}
+
+/* ── v15: guida rapida e aiuto ───────────────────────────────────────── */
+.help-btn{display:inline-grid;place-items:center;width:18px;height:18px;margin-left:8px;border-radius:50%;border:1px solid var(--accent-line);background:var(--accent-glow);color:var(--accent);font-size:.62rem;font-weight:700;font-family:var(--sans);letter-spacing:0;cursor:pointer;vertical-align:middle;padding:0;line-height:1;text-transform:none;}
+.help-btn:hover{background:var(--accent);color:var(--bg);}
+.set-lbl>span:first-child{display:inline-flex;align-items:center;}
+.tut-card{text-align:center;}
+.tut-icon{font-size:2.6rem;line-height:1;margin:4px 0 14px;}
+.tut-text{font-size:.9rem;line-height:1.65;color:var(--text-mid);text-align:left;}
+.tut-text b{color:var(--text);}
+.tut-dots{display:flex;justify-content:center;gap:6px;margin:22px 0 14px;}
+.tut-dots span{width:6px;height:6px;border-radius:50%;background:var(--border);transition:all .2s;}
+.tut-dots span.on{background:var(--accent);width:18px;border-radius:3px;}
+.welcome{border-top:2px solid var(--accent);}
+.tut-text span[style] b{color:inherit;}

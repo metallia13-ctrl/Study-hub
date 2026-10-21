@@ -2,12 +2,15 @@
 // Strategia "network-first" per i file dell'app: quando pubblichi una nuova
 // versione su GitHub Pages la ricevi subito; offline usa la copia in cache.
 // Incrementa CACHE_VERSION ad ogni rilascio per pulire le cache vecchie.
-const CACHE_VERSION = 'studyhub-v15';
+const CACHE_VERSION = 'studyhub-v16';
 const APP_SHELL = ['./', './index.html', './style.css', './app.js', './manifest.webmanifest',
-                   './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
+                   './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
-    e.waitUntil(caches.open(CACHE_VERSION).then(c => c.addAll(APP_SHELL)).then(() => self.skipWaiting()));
+    // Ogni file è messo in cache separatamente: se uno manca, il service worker si installa lo stesso
+    e.waitUntil(caches.open(CACHE_VERSION)
+        .then(c => Promise.all(APP_SHELL.map(u => c.add(u).catch(() => null))))
+        .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {

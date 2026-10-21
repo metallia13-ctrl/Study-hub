@@ -354,3 +354,9 @@ body.light .t-dot.active{border-color:rgba(0,0,0,.18);}
 .tut-dots span.on{background:var(--accent);width:18px;border-radius:3px;}
 .welcome{border-top:2px solid var(--accent);}
 .tut-text span[style] b{color:inherit;}
+
+/* ── v16: installazione ──────────────────────────────────────────────── */
+.chk-row{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border-sub);font-size:.84rem;line-height:1.5;}
+.chk-row .ok{color:var(--success-bright);font-weight:700;}
+.chk-row .ko{color:var(--danger);font-weight:700;}
+#helpBody b{color:var(--text);}

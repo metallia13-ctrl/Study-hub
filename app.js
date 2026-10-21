@@ -406,7 +406,7 @@ function renderGlobal(target){
             <p class="muted" style="margin-bottom:6px;">Crea la tua prima materia con il <b>+</b> in alto, oppure guarda la guida rapida.</p>
             <div class="btn-row"><button class="btn btn-primary" onclick="openModal('modalNewSubject')">+ Crea materia</button><button class="btn btn-secondary" onclick="openTutorial()">📖 Guida</button></div>
         </div>`;
-    target.innerHTML = welcome + `
+    target.innerHTML = installBannerHtml() + welcome + `
         <div class="search"><input type="search" id="agendaSearch" placeholder="Cerca impegni e argomenti (anche archiviati)…" value="${escHtml(agendaQuery)}" oninput="onAgendaSearch(this.value)"></div>
         <div id="agendaControls">
             <div class="view-toggle">${vb('today','Oggi')}${vb('mixed', `Ripasso${nDue ? ` (${nDue})` : ''}`)}${vb('dayview','Giorno')}${vb('week','Settimana')}${vb('month','Mese')}</div>
@@ -770,7 +770,7 @@ function setSubTab(type){
     else if (type === 'stats') renderStats(target, sub);
     else if (type === 'pomodoro') {
         target.innerHTML = `<div class="card" style="padding:26px 18px;"><div id="pomoInner">${renderPomodoro()}</div></div>`;
-        if (ytPlaylistUrl) ensureYTPlayer(false);
+        if (ytPlaylistUrl && ytMode !== 'app') ensureYTPlayer(false);
     }
     updateYTDock();
 }
@@ -1809,6 +1809,30 @@ let pomodoroStudyMins = pomoCfg.study || 25, pomodoroBreakMins = pomoCfg.brk || 
 let pomodoroSeconds = pomodoroStudyMins * 60;
 let pomodoroRunning = false, pomodoroBreak = false, pomodoroTimer = null, pomoEndAt = 0;
 let pomoSub = null, pomoTopicId = '', pomoSegStart = 0;
+// Il timer sopravvive alla chiusura dell'app: lo stato è salvato sul dispositivo
+const POMO_STATE_KEY = 'studyhub_pomo_state';
+function savePomoState(){
+    try {
+        localStorage.setItem(POMO_STATE_KEY, JSON.stringify({ running: pomodoroRunning, brk: pomodoroBreak, endAt: pomoEndAt,
+            secs: pomodoroSeconds, sub: pomoSub, topic: pomoTopicId, segStart: pomoSegStart }));
+    } catch (_) {}
+}
+function restorePomoState(){
+    let st = null;
+    try { st = JSON.parse(localStorage.getItem(POMO_STATE_KEY)); } catch (_) {}
+    if (!st) return;
+    pomodoroBreak = !!st.brk;
+    pomoSub = st.sub && data.subjects[st.sub] ? st.sub : null;
+    pomoTopicId = st.topic || '';
+    pomoSegStart = Number(st.segStart) || 0;
+    pomodoroSeconds = Number(st.secs) > 0 ? Number(st.secs) : pomoTotal();
+    if (st.running && st.endAt) {
+        pomoEndAt = Number(st.endAt);
+        pomodoroRunning = true;
+        if (Date.now() >= pomoEndAt) pomoFinishPhase(true);
+        else { clearInterval(pomodoroTimer); pomodoroTimer = setInterval(pomoTick, 500); updatePomoDisplay(); }
+    }
+}
 const BASE_TITLE = document.title;
 const POMO_R = 68, POMO_C = 2 * Math.PI * POMO_R;
 
@@ -1832,7 +1856,7 @@ function flushStudyTime(){
     dev[iso] = (dev[iso] || 0) + sec;
     const t = pomoTopicId && sub.topics.find(x => x.id === pomoTopicId);
     if (t) t.seconds = (t.seconds || 0) + sec;
-    save();
+    save(); savePomoState();
 }
 function renderPomodoro(){
     const rem = pomoRemaining(), offset = POMO_C * (1 - rem / pomoTotal());
@@ -1866,16 +1890,24 @@ function renderPomodoro(){
         </div>
         <div class="pomo-sessions">Sessioni completate oggi: ${pomoSessionsToday()}</div>
         <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px;text-align:left;">
-            <div class="field-lbl" style="margin-bottom:6px;">YouTube — link playlist o video</div>
+            <div class="field-lbl" style="margin-bottom:6px;display:flex;align-items:center;">Musica da YouTube${helpBtn('ytmode')}</div>
             <div style="display:flex;gap:8px;align-items:flex-end;">
-                <input type="text" id="ytUrlInput" placeholder="https://youtube.com/playlist?list=…" value="${escHtml(ytPlaylistUrl)}" style="flex:1;font-size:.8rem;margin-bottom:0;" onkeydown="if(event.key==='Enter')saveYTUrl()">
+                <input type="text" id="ytUrlInput" placeholder="Incolla il link di una playlist o di un video" value="${escHtml(ytPlaylistUrl)}" style="flex:1;font-size:.8rem;margin-bottom:0;" onkeydown="if(event.key==='Enter')saveYTUrl()">
                 <button class="btn btn-secondary btn-small" onclick="saveYTUrl()">Salva</button>
             </div>
-            <div class="muted" style="margin-top:8px;${hasYT ? 'color:var(--success-bright);' : ''}">${hasYT ? '✓ Parte con il timer e continua anche se cambi tab' : 'Nessuna playlist collegata'}</div>
+            ${hasYT ? `<div class="seg" style="margin-top:12px;">
+                    <button class="chip${ytMode === 'app' ? ' on' : ''}" onclick="setYTMode('app')">App YouTube</button>
+                    <button class="chip${ytMode !== 'app' ? ' on' : ''}" onclick="setYTMode('embed')">Dentro Study Hub</button>
+                </div>
+                <div class="muted" style="margin-top:8px;">${ytMode === 'app'
+                    ? "Quando avvii una sessione si apre l'app YouTube: con Premium la musica continua anche se esci o spegni lo schermo. Il timer qui va avanti da solo."
+                    : "La musica parte con il timer, ma si ferma se esci dall'app o spegni lo schermo."}</div>
+                ${ytMode === 'app' ? `<button class="btn btn-secondary" onclick="openYouTubeApp()">▶ Apri la playlist in YouTube</button>` : ''}`
+              : `<div class="muted" style="margin-top:8px;">Nessuna playlist collegata</div>`}
         </div>
     </div>`;
 }
-function setPomoTopic(v){ flushStudyTime(); pomoTopicId = v; }
+function setPomoTopic(v){ flushStudyTime(); pomoTopicId = v; savePomoState(); }
 function updatePomoDisplay(){
     const rem = pomoRemaining();
     const tx = document.getElementById('pomoTimeText'), ring = document.getElementById('pomoRingProg');
@@ -1888,34 +1920,47 @@ function setPomoDuration(type, delta){
     if (type === 'study') { pomodoroStudyMins = Math.min(90, Math.max(5, pomodoroStudyMins + delta)); if (!pomodoroRunning && !pomodoroBreak) pomodoroSeconds = pomodoroStudyMins * 60; }
     else { pomodoroBreakMins = Math.min(30, Math.max(1, pomodoroBreakMins + delta)); if (!pomodoroRunning && pomodoroBreak) pomodoroSeconds = pomodoroBreakMins * 60; }
     localStorage.setItem(POMO_KEY, JSON.stringify({ study: pomodoroStudyMins, brk: pomodoroBreakMins }));
-    refreshPomodoro();
+    savePomoState(); refreshPomodoro();
 }
 function pomoTick(){ if (pomoRemaining() <= 0) pomoFinishPhase(); else updatePomoDisplay(); }
-function pomoFinishPhase(){
+function pomoFinishPhase(whileAway){
     flushStudyTime();
     clearInterval(pomodoroTimer); pomodoroRunning = false; ytPause();
-    if (navigator.vibrate) { try { navigator.vibrate([200, 100, 200]); } catch (_) {} }
-    if (!pomodoroBreak) { addPomoSession(); pomodoroBreak = true; pomodoroSeconds = pomodoroBreakMins * 60; showToast('✓ Sessione completata — pausa!'); }
-    else { pomodoroBreak = false; pomodoroSeconds = pomodoroStudyMins * 60; showToast('⏱ Pausa finita — al lavoro!'); }
-    refreshPomodoro();
+    if (!whileAway && navigator.vibrate) { try { navigator.vibrate([200, 100, 200]); } catch (_) {} }
+    if (!pomodoroBreak) {
+        addPomoSession(); pomodoroBreak = true; pomodoroSeconds = pomodoroBreakMins * 60;
+        showToast(whileAway ? '✓ Sessione di studio completata mentre eri via' : '✓ Sessione completata — pausa!');
+    } else {
+        pomodoroBreak = false; pomodoroSeconds = pomodoroStudyMins * 60;
+        showToast(whileAway ? '⏱ La pausa è finita mentre eri via' : '⏱ Pausa finita — al lavoro!');
+    }
+    savePomoState(); refreshPomodoro(); updatePomoDisplay();
 }
 function pomodoroToggle(){
+    let openYT = false;
     if (pomodoroRunning) {
         flushStudyTime();
         pomodoroSeconds = pomoRemaining(); clearInterval(pomodoroTimer); pomodoroRunning = false; ytPause();
     } else {
         if (pomodoroSeconds <= 0) pomodoroSeconds = pomoTotal();
+        const fresh = !pomodoroBreak && pomodoroSeconds === pomodoroStudyMins * 60;
         if (!pomodoroBreak) { pomoSub = data.activeSub; pomoSegStart = pomodoroSeconds; }
         pomoEndAt = Date.now() + pomodoroSeconds * 1000; pomodoroRunning = true;
-        if (ytPlaylistUrl && !pomodoroBreak) ensureYTPlayer(true);
         clearInterval(pomodoroTimer); pomodoroTimer = setInterval(pomoTick, 500);
+        savePomoState();
+        if (ytPlaylistUrl && !pomodoroBreak) {
+            if (ytMode === 'app') openYT = fresh;
+            else ensureYTPlayer(true);
+        }
     }
+    savePomoState();
     refreshPomodoro();
+    if (openYT) openYouTubeApp();      // subito, finché vale il tocco dell'utente
 }
 function pomodoroReset(){
     flushStudyTime();
     clearInterval(pomodoroTimer); pomodoroRunning = false; pomodoroBreak = false;
-    pomodoroSeconds = pomodoroStudyMins * 60; ytPause(); refreshPomodoro();
+    pomodoroSeconds = pomodoroStudyMins * 60; ytPause(); savePomoState(); refreshPomodoro(); updatePomoDisplay();
 }
 
 // ── YouTube ─────────────────────────────────────────────────────────────────
@@ -1955,6 +2000,30 @@ function ensureYTPlayer(play){
     });
     updateYTDock();
 }
+let ytMode = localStorage.getItem('studyhub_yt_mode') || 'app';
+function setYTMode(m){
+    ytMode = m === 'embed' ? 'embed' : 'app';
+    localStorage.setItem('studyhub_yt_mode', ytMode);
+    if (ytMode === 'app') destroyYTPlayer(); else if (ytPlaylistUrl) ensureYTPlayer(pomodoroRunning && !pomodoroBreak);
+    refreshPomodoro(); updateYTDock();
+}
+function youtubeWebUrl(){
+    const pl = extractYTPlaylistId(ytPlaylistUrl), v = extractYTVideoId(ytPlaylistUrl);
+    if (v) return `https://www.youtube.com/watch?v=${v}${pl ? '&list=' + pl : ''}`;
+    if (pl) return `https://www.youtube.com/playlist?list=${pl}`;
+    return ytPlaylistUrl;
+}
+// Apre l'app YouTube (dove funziona l'ascolto in background di Premium)
+function openYouTubeApp(){
+    if (!ytPlaylistUrl) return;
+    savePomoState();
+    const web = youtubeWebUrl(), ua = navigator.userAgent;
+    if (/Android/i.test(ua)) {
+        location.href = `intent://${web.replace(/^https:\/\//, '')}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(web)};end`;
+    } else if (/iPhone|iPad|iPod/i.test(ua)) {
+        location.href = web.replace(/^https:\/\//, 'youtube://');
+    } else window.open(web, '_blank', 'noopener');
+}
 function ytPause(){ if (ytPlayer && ytPlayer.pauseVideo) { try { ytPlayer.pauseVideo(); } catch (_) {} } }
 function saveYTUrl(){
     const inp = document.getElementById('ytUrlInput');
@@ -1962,12 +2031,12 @@ function saveYTUrl(){
     const val = inp.value.trim();
     if (val && !extractYTPlaylistId(val) && !extractYTVideoId(val)) { showToast('⚠ Link YouTube non riconosciuto'); return; }
     ytPlaylistUrl = val; localStorage.setItem('studyhub_yt_url', ytPlaylistUrl);
-    if (!ytPlaylistUrl) destroyYTPlayer(); else ensureYTPlayer(pomodoroRunning && !pomodoroBreak);
+    if (!ytPlaylistUrl || ytMode === 'app') destroyYTPlayer(); else ensureYTPlayer(pomodoroRunning && !pomodoroBreak);
     refreshPomodoro(); updateYTDock();
 }
 function updateYTDock(){
     const dock = document.getElementById('ytDock');
-    if (dock) dock.classList.toggle('offscreen', !(ytPlaylistUrl && !data.isGlobal && data.activeTab === 'pomodoro'));
+    if (dock) dock.classList.toggle('offscreen', !(ytPlaylistUrl && ytMode !== 'app' && !data.isGlobal && data.activeTab === 'pomodoro'));
 }
 
 // ── Materie ─────────────────────────────────────────────────────────────────
@@ -2425,6 +2494,7 @@ function renderSettings(){
     const lbl = (text, key) => `<div class="set-lbl"><span>${text}${key ? helpBtn(key) : ''}</span></div>`;
     document.getElementById('settingsBody').innerHTML = `
         <div class="set-sec"><button class="btn btn-primary" style="margin-top:0;" onclick="openTutorial()">📖 Guida rapida</button></div>
+        <div class="set-sec"><div class="set-lbl"><span>App sul telefono${helpBtn('install')}</span></div>${installSectionHtml()}</div>
         <div class="set-sec">${lbl('Tema')}<div class="seg">${seg('theme','dark','○ Scuro', !light)}${seg('theme','light','◐ Chiaro', light)}</div></div>
         <div class="set-sec">${lbl('I tuoi dati', 'backup')}
             <div class="btn-row">
@@ -2464,7 +2534,7 @@ function toggleScriptBox(){ const box = document.getElementById('scriptBox'); if
 const TUTORIAL_KEY = 'studyhub_tutorial_done';
 const TUTORIAL = [
     { icon:'👋', title:'Benvenuta!', html:`Study Hub ti dice <b>cosa ripassare e quando</b>, così non dimentichi quello che hai studiato.<br><br>Ti bastano 2 minuti per capire come funziona.` },
-    { icon:'📲', title:'Mettila sulla schermata Home', html:`Così si apre come una vera app e i tuoi dati restano al sicuro.<br><br><b>Android (Chrome):</b> menu <b>⋮</b> in alto a destra → <b>Installa app</b> (o <b>Aggiungi a schermata Home</b>).<br><b>iPhone (Safari):</b> tasto <b>Condividi</b> ⬆ → <b>Aggiungi alla schermata Home</b>.` },
+    { icon:'📲', title:'Mettila sulla schermata Home', html:`Così si apre come una vera app e i tuoi dati restano al sicuro.<br><br><b>Android:</b> ⚙ Impostazioni → <b>Installa l'app</b>, oppure in Chrome menu <b>⋮</b> → <b>Installa app</b>.<br><b>iPhone:</b> in <b>Safari</b> tasto <b>Condividi</b> ⬆ → <b>Aggiungi alla schermata Home</b>.<br><br>Poi apri sempre l'app dall'icona.` },
     { icon:'➕', title:'1. Crea una materia', html:`Tocca il <b>+</b> nella barra in alto e scrivi il nome, per esempio “Anatomia”.<br><br>Ogni materia ha la sua scheda in alto.` },
     { icon:'📝', title:'2. Dopo aver studiato', html:`Apri la materia → scheda <b>Studio</b> → scrivi l'argomento che hai studiato → <b>Pianifica</b>.<br><br>Il primo ripasso sarà <b>domani</b>.<br><br>Hai il programma d'esame? Usa <b>+ Incolla programma</b> e spunta gli argomenti man mano.` },
     { icon:'🔁', title:'3. Ogni giorno: Ripasso', html:`Apri la scheda <b>Ripasso</b>. Ripeti l'argomento a mente, poi scegli:<br><br>
@@ -2508,8 +2578,74 @@ const HELP = {
     backup:    { t:'Backup', b:`<b>Esporta backup</b> scarica un file con tutti i tuoi dati. Conservalo (per esempio su Google Drive o inviatelo per email).<br><br><b>Importa backup</b> carica quel file e riporta tutto com'era: utile se cambi telefono o se il browser cancella i dati.<br><br>Fallo ogni settimana o due.` },
     csv:       { t:'Importa da Excel', b:`Per aggiungere tanti impegni o argomenti in una volta da un foglio Excel.<br><br>Il foglio deve avere le colonne: <b>Titolo</b>, <b>Data</b> (GG/MM/AAAA) e, se vuoi, <b>Ora</b>. In Excel: File → Salva come → <b>CSV</b>.` },
     script:    { t:'Script Google', b:`È il codice da copiare in Google per attivare la sincronizzazione. Ti serve solo se la stai configurando: altrimenti ignoralo.` },
+    install:   { t:"Installare l'app", b:`Installata, Study Hub si apre dalla schermata Home come un'app vera: niente barra di Chrome, e se la chiudi per sbaglio non perdi nulla (nemmeno il timer).<br><br>Usa il pulsante <b>Installa l'app</b>. Se non funziona, lo stesso pulsante ti dice cosa fare.` },
+    ytmode:    { t:'Musica da YouTube', b:`<b>App YouTube</b> (consigliato): quando avvii lo studio si apre l'app YouTube con la tua playlist. Con <b>YouTube Premium</b> la musica continua anche se esci o spegni lo schermo. Poi torna qui: il timer è andato avanti da solo.<br><br><b>Dentro Study Hub</b>: la musica suona dentro l'app, ma si ferma appena esci o spegni lo schermo. Il motivo: YouTube non permette di usare Premium nei video inseriti in altre app.` },
     versions:  { t:'Versioni salvate', b:`Con la sincronizzazione attiva, Google conserva una copia dei tuoi dati per ogni giorno (fino a 30 giorni).<br><br>Se qualcosa va storto, scegli un giorno e tocca <b>Ripristina</b> per tornare a com'era.` }
 };
+// ── Installazione come app ──────────────────────────────────────────────────
+let _installEvt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); _installEvt = e; refreshInstallUi(); });
+window.addEventListener('appinstalled', () => { _installEvt = null; showToast('✓ App installata: aprila dalla schermata Home'); refreshInstallUi(); });
+function isStandalone(){ return window.matchMedia('(display-mode: standalone)').matches || window.matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true; }
+function isIOS(){ return /iPhone|iPad|iPod/i.test(navigator.userAgent); }
+function refreshInstallUi(){
+    if (!document.getElementById('modalSettings').classList.contains('hidden')) renderSettings();
+    if (data.isGlobal) { const b = document.getElementById('installBanner'); if (b) b.outerHTML = installBannerHtml(); }
+}
+function installBannerHtml(){
+    if (isStandalone() || !_installEvt || localStorage.getItem('studyhub_install_dismissed')) return '<div id="installBanner"></div>';
+    return `<div id="installBanner" class="card welcome" style="display:flex;align-items:center;gap:12px;">
+        <span style="font-size:1.6rem;">📲</span>
+        <span style="flex:1;font-size:.84rem;line-height:1.45;">Installa Study Hub sul telefono: si apre come un'app e il timer non si perde.</span>
+        <button class="btn btn-primary btn-small" onclick="installApp()">Installa</button>
+        <span class="link-action" onclick="localStorage.setItem('studyhub_install_dismissed','1');refreshInstallUi()" title="Non mostrare più">✕</span>
+    </div>`;
+}
+async function installApp(){
+    if (!_installEvt) { openInstallCheck(); return; }
+    try { _installEvt.prompt(); await _installEvt.userChoice; } catch (_) {}
+    _installEvt = null; refreshInstallUi();
+}
+function installSectionHtml(){
+    if (isStandalone()) return `<div class="set-hint" style="margin-top:0;color:var(--success-bright);">✓ Stai usando l'app installata.</div>`;
+    return `<button class="btn btn-${_installEvt ? 'primary' : 'secondary'}" style="margin-top:0;" onclick="installApp()">📲 Installa l'app</button>
+        <div class="set-hint">${_installEvt ? 'Un tocco e la trovi sulla schermata Home.' : "Non si installa? Tocca il pulsante: ti dico cosa fare e controllo se qualcosa non va."}</div>`;
+}
+async function openInstallCheck(){
+    closeModal('modalSettings');
+    document.getElementById('helpTitle').textContent = 'Installare l\'app';
+    const body = document.getElementById('helpBody');
+    body.innerHTML = '<p>Controllo in corso…</p>';
+    openModal('modalHelp');
+    const rows = [];
+    const ok = (good, text, fix) => rows.push(`<div class="chk-row"><span class="${good ? 'ok' : 'ko'}">${good ? '✓' : '✗'}</span><span>${text}${!good && fix ? `<br><span class="muted">${fix}</span>` : ''}</span></div>`);
+    ok(location.protocol === 'https:', 'Indirizzo sicuro (https)', "Apri l'app dal link https di GitHub Pages.");
+    let man = null;
+    try {
+        const link = document.querySelector('link[rel="manifest"]');
+        const r = await fetch(link.href, { cache:'no-store' });
+        man = r.ok ? await r.json() : null;
+    } catch (_) {}
+    ok(!!man, 'File manifest.webmanifest presente', 'Carica manifest.webmanifest nella stessa cartella di index.html su GitHub.');
+    if (man) {
+        let iconsOk = true;
+        for (const ic of (man.icons || [])) {
+            try { const r = await fetch(new URL(ic.src, new URL('manifest.webmanifest', location.href)).href, { cache:'no-store' }); if (!r.ok) iconsOk = false; } catch (_) { iconsOk = false; }
+        }
+        ok(iconsOk && (man.icons || []).length >= 2, 'Icone presenti', 'Carica icon-192.png, icon-512.png e icon-maskable-512.png accanto a index.html.');
+    }
+    let sw = false;
+    try { const reg = 'serviceWorker' in navigator && await navigator.serviceWorker.getRegistration(); sw = !!(reg && (reg.active || reg.waiting || reg.installing)); } catch (_) {}
+    ok(sw, 'Service worker attivo', 'Carica sw.js accanto a index.html, poi ricarica la pagina due volte.');
+    const steps = isIOS()
+        ? `<b>Su iPhone</b> usa <b>Safari</b> (non Chrome): tasto <b>Condividi</b> ⬆ → <b>Aggiungi alla schermata Home</b>.`
+        : `<b>Su Android</b> usa <b>Chrome</b>: menu <b>⋮</b> in alto a destra → <b>Installa app</b>.<br><br>
+           Se vedi solo <b>Aggiungi a schermata Home</b>, quella crea un semplice collegamento che si apre come scheda di Chrome. In quel caso ricarica la pagina, aspetta qualche secondo e riapri il menu.`;
+    body.innerHTML = `${rows.join('')}
+        <div style="margin-top:16px;">${steps}</div>
+        <div style="margin-top:14px;"><b>Avevi già un'icona sulla schermata Home che apre una scheda di Chrome?</b> È un vecchio collegamento: eliminala e installa di nuovo come spiegato qui sopra.</div>
+        ${_installEvt ? `<button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal('modalHelp');installApp()">📲 Installa ora</button>` : ''}`;
+}
 function helpBtn(key){ return `<button class="help-btn" onclick="event.stopPropagation();showHelp('${key}')" aria-label="Aiuto">?</button>`; }
 function showHelp(key){
     const h = HELP[key];
@@ -2546,7 +2682,7 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('focusout', flushPendingRender);
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible') return;
+    if (document.visibilityState !== 'visible') { savePomoState(); return; }
     if (pomodoroRunning) pomoTick();
     if (syncUrl && !syncInProgress && Date.now() - lastSyncAt > 60000) doSync(true);
     if (settings.orientation !== 'any') applyOrientation(false);
@@ -2563,6 +2699,7 @@ function init(){
         m.addEventListener('mousedown', e => { downOnBackdrop = e.target === m; });
         m.addEventListener('click', e => { if (e.target === m && downOnBackdrop) closeModal(m.id); });
     });
+    restorePomoState();
     render();
     updateSyncBtn(getSyncStatus());
     applyOrientation(false);

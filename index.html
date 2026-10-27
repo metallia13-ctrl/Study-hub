@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Study Hub</title>
-    <meta name="theme-color" content="#0a0a0a">
+    <meta name="theme-color" content="#101215">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -130,6 +130,13 @@
         <button class="btn btn-primary" onclick="saveSubTopic(true)">Già studiato</button>
     </div>
     <button class="btn btn-secondary" style="margin-top:8px;" onclick="closeModal('modalSubTopic')">Annulla</button>
+</div></div>
+
+<div id="modalChoice" class="modal-overlay hidden"><div class="modal-card">
+    <div class="modal-title" id="choiceTitle"></div>
+    <p class="confirm-msg" id="choiceMsg"></p>
+    <div id="choiceBtns"></div>
+    <button class="btn btn-secondary" style="margin-top:12px;" onclick="closeModal('modalChoice')">Annulla</button>
 </div></div>
 
 <div id="modalConfirm" class="modal-overlay hidden"><div class="modal-card" style="text-align:center;">

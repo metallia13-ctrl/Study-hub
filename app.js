@@ -20,7 +20,8 @@ const Q_INFO = {
     buono:     { label:'Buono',          color:'var(--success-bright)' },
     reset:     { label:'Reset completo', color:'var(--exam-color)' },
     nota:      { label:'Nota',           color:'var(--warning)' },
-    studio:    { label:'Studiato',       color:'var(--sub)' }
+    studio:    { label:'Studiato',       color:'var(--sub)' },
+    sposta:    { label:'Rimandato',      color:'var(--text-dim)' }
 };
 
 // ── Utility ─────────────────────────────────────────────────────────────────
@@ -94,7 +95,7 @@ function parseTimeInput(str){
 
 // ── Impostazioni del dispositivo (non sincronizzate) ───────────────────────
 let settings = (() => {
-    try { return Object.assign({ orientation:'any', archiveDays:30, loadBalance:true, dailyMax:0 }, JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}); }
+    try { return Object.assign({ orientation:'any', archiveDays:30, loadBalance:true, dailyMax:0, ntfyOn:false, ntfyTopic:'', ntfyServer:'https://ntfy.sh' }, JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}); }
     catch (_) { return { orientation:'any', archiveDays:30, loadBalance:true, dailyMax:0 }; }
 })();
 function saveSettings(){ localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
@@ -128,6 +129,7 @@ function normalizeData(d){
         if (s.algo !== 'sm2' && s.algo !== 'fsrs') s.algo = 'fsrs';
         s.retention = [0.85, 0.9, 0.95].includes(s.retention) ? s.retention : 0.9;
         if (typeof s.examBoost !== 'boolean') s.examBoost = true;
+        if (!Array.isArray(s.learnSteps) || !s.learnSteps.every(n => typeof n === 'number' && n > 0)) s.learnSteps = [10, 60];
         const seen = new Set();
         s.topics = s.topics.filter(t => t && typeof t === 'object');
         s.topics.forEach(t => {
@@ -147,6 +149,8 @@ function normalizeData(d){
             if (!Array.isArray(t.history)) t.history = [];
             t.archived = !!t.archived;
             t.relearn = !!t.relearn;
+            if (!t.learn || typeof t.learn !== 'object' || typeof t.learn.due !== 'number') t.learn = null;
+            if (t.relearn && !t.learn && t.next && t.next <= todayStr()) t.learn = { step: 0, due: t.requeueAt || Date.now() };
             if (!t.fsrs || typeof t.fsrs !== 'object' || !(t.fsrs.s > 0)) t.fsrs = null;
             if (typeof t._mod !== 'number') t._mod = s._mod;
         });
@@ -457,9 +461,9 @@ function getEventsForDate(dStr){
     const events = [];
     if (data.filterRipasso) {
         Object.keys(data.subjects).forEach(s => {
-            const sub = data.subjects[s], examM = isExamModeFinal(s);
+            const sub = data.subjects[s], examM = isExamModeFinal(s), cset = containerIds(sub);
             sub.topics.forEach(t => {
-                if (t.next !== dStr || (examM && t.triage !== 3)) return;
+                if (t.next !== dStr || cset.has(t.id) || (examM && t.triage !== 3)) return;
                 events.push({ type:'ripasso', id:t.id, name:t.name, subject:s, color:topicColor(t, sub), time:null });
             });
         });
@@ -691,22 +695,13 @@ function deleteEditingEvent(){
 }
 
 // ── Materia ─────────────────────────────────────────────────────────────────
-function dueTopics(sub, subName){
-    const today = todayStr();
-    let due = sub.topics.filter(t => !isTodo(t) && t.next && t.next <= today);
-    if (isExamModeFinal(subName)) due = due.filter(t => t.triage === 3);
-    // "Ripeti" manda la carta in fondo alla coda (in ordine di quando l'hai ripetuta)
-    const rq = t => (t.requeueAt && localDateStr(new Date(t.requeueAt)) === today) ? t.requeueAt : 0;
-    return due.map((t, i) => ({ t, i, r: rq(t) }))
-        .sort((a, b) => (a.r - b.r) || (a.i - b.i))
-        .map(x => x.t);
-}
 function renderMateria(app){
     const name = data.activeSub, sub = data.subjects[name];
     if (!sub) { data.isGlobal = true; renderGlobal(app); return; }
     app.style.setProperty('--sub', sub.color);
     const examM = isExamModeFinal(name), diff = daysToExam(sub);
     const dueN = dueTopics(sub, name).length, cov = coverage(sub);
+    const soonN = learningSoon(sub, name).length;
     let cd;
     if (diff === null) cd = `<button class="countdown empty-cd" onclick="openExamDateModal()">Imposta data esame</button>`;
     else if (diff > 0) cd = `<button class="countdown" onclick="openExamDateModal()" title="${fmtDate(sub.examDate)}"><b>${diff}</b><span>${diff === 1 ? 'giorno' : 'giorni'}<br>all'esame</span></button>`;
@@ -717,7 +712,7 @@ function renderMateria(app){
             <div class="hero-kicker"></div>
             <div class="hero-row"><h1 class="hero-title">${escHtml(name)}</h1>${cd}</div>
             <div class="hero-chips">
-                <button class="chip" onclick="setSubTab('ripasso')"><span class="n">${dueN}</span> da ripassare</button>
+                <button class="chip" onclick="setSubTab('ripasso')"><span class="n">${dueN}</span> da ripetere${soonN ? ` · ${soonN} più tardi` : ''}</button>
                 <button class="chip exam${examM ? ' on' : ''}" onclick="toggleExamMode()">● Modalità esame${examM ? ' attiva' : ''}</button>
                 ${cov.todo ? `<button class="chip" onclick="setSubTab('study')"><span class="n">${Math.round(cov.done / cov.total * 100)}%</span> programma</button>` : ''}
                 <button class="chip warn" onclick="applyImprevisto()">⚠ Imprevisto +1g</button>
@@ -827,29 +822,11 @@ function topicOptionsHtml(sub, exclude, selected){
     return treeOrder(sub).filter(x => !(exclude && exclude.has(x.t.id)))
         .map(x => `<option value="${escHtml(x.t.id)}"${x.t.id === selected ? ' selected' : ''}>${'\u00a0\u00a0\u00a0'.repeat(x.depth)}${x.depth ? '└ ' : ''}${escHtml(x.t.name)}</option>`).join('');
 }
-function coverage(sub){
-    const total = sub.topics.length, todo = sub.topics.filter(isTodo).length;
-    return { total, todo, done: total - todo };
-}
 
 // ── Studio ──────────────────────────────────────────────────────────────────
 function triageBoxHtml(active, handler){
     const dot = (n, label, bg, fg) => `<div class="t-dot ${active === n ? 'active' : ''}" style="background:${bg};color:${fg}" onclick="${handler(n)}">${label}</div>`;
     return `<div class="triage-box">${dot(1,'Base','var(--success)','#000')}${dot(2,'Complesso','var(--warning)','#000')}${dot(3,'Esame','var(--danger)','#fff')}</div>`;
-}
-function renderStudyTab(target){
-    const sub = data.subjects[data.activeSub];
-    target.innerHTML = `<div class="card">
-        <div class="section-label">Nuovo argomento studiato</div>
-        <div id="studyTriage">${triageBoxHtml(data.triage, n => `setTriage(${n})`)}</div>
-        <input type="text" id="inT" placeholder="Nome argomento" onkeydown="if(event.key==='Enter')addTopic()">
-        ${sub.topics.length ? `<div class="field-lbl">Dentro a (facoltativo)</div>
-        <select class="styled-select" id="inParent"><option value="">— Argomento principale —</option>${topicOptionsHtml(sub, null, '')}</select>` : ''}
-        <textarea id="inQ" placeholder="Domande d'esame, una per riga (facoltative)…" style="min-height:60px;"></textarea>
-        <textarea id="inN" placeholder="Note / risposte (facoltative)…"></textarea>
-        <button class="btn btn-primary" onclick="addTopic()">Pianifica — primo ripasso domani</button>
-    </div>
-    ${programCardHtml(sub)}`;
 }
 function setTriage(n){
     data.triage = n;
@@ -863,68 +840,12 @@ function newTopic(name, notes, next, triage, parent, questions){
              parent: parent || null, questions: questions || [], seconds: 0 };
 }
 function parseQuestions(text){ return String(text || '').split('\n').map(s => s.replace(/^\s*(?:[-*•·]|\d+[.)])\s*/, '').trim()).filter(Boolean); }
-function addTopic(){
-    const sub = data.subjects[data.activeSub];
-    const inT = document.getElementById('inT'), inN = document.getElementById('inN'), inQ = document.getElementById('inQ'), inP = document.getElementById('inParent');
-    const name = inT.value.trim();
-    if (!name) { inT.focus(); return; }
-    const parent = inP && inP.value ? inP.value : null;
-    const qs = parseQuestions(inQ.value);
-    const existing = sub.topics.find(t => isTodo(t) && norm(t.name) === norm(name) && (!parent || t.parent === parent));
-    if (existing) {                                   // era nel programma: lo segna come studiato
-        if (inN.value.trim()) existing.notes = existing.notes ? existing.notes + '\n' + inN.value : inN.value;
-        if (qs.length) existing.questions = existing.questions.concat(qs);
-        inT.value = ''; inN.value = ''; inQ.value = '';
-        markStudied(existing.id);
-        return;
-    }
-    sub.topics.push(newTopic(name, inN.value, shiftDate(todayStr(), 1), data.triage, parent, qs));
-    save();
-    inT.value = ''; inN.value = ''; inQ.value = '';
-    refreshTab();
-    showToast('✓ Registrato — ripasso domani');
-}
-function markStudied(id){
-    const loc = locateTopic(id);
-    if (!loc) return;
-    const t = loc.t, snap = snapshot();
-    delete t.status;
-    t.next = shiftDate(todayStr(), 1); t.interval = 1; t.relearn = false; t.fsrs = null;
-    t.studiedOn = todayStr();
-    pushHistory(t, { d: todayStr(), ts: Date.now(), q: 'studio' });
-    save(); refreshCurrent();
-    showToast(`✓ “${t.name}” studiato — ripasso domani`, snap);
-}
 function refreshCurrent(){
     const y = window.scrollY;
     if (data.isGlobal) renderMainCalendar();
     else if (data.activeTab === 'history') { renderArchList(); updateDueBadges(); }
     else refreshTab();
     window.scrollTo(0, y);
-}
-function programCardHtml(sub){
-    const c = coverage(sub), pct = c.total ? Math.round(c.done / c.total * 100) : 0;
-    const ex = daysToExam(sub);
-    let plan = '';
-    if (c.todo && ex !== null && ex > 0) {
-        const buf = ex > 7 ? 3 : ex > 3 ? 1 : 0, days = Math.max(1, ex - buf), per = Math.ceil(c.todo / days);
-        plan = `Per finire ${buf ? `${buf} ${buf === 1 ? 'giorno' : 'giorni'} prima dell'esame` : "entro l'esame"}: <b style="color:var(--text);">${plural(per, 'argomento', 'argomenti')} al giorno</b>.`;
-    } else if (c.todo && ex === null) plan = "Imposta la data d'esame per calcolare il ritmo giornaliero.";
-    const todoRows = treeOrder(sub).filter(x => isTodo(x.t));
-    const shown = todoRows.slice(0, 40);
-    const list = shown.map(({ t }) => {
-        const cr = breadcrumb(t, sub);
-        return `<div class="todo-topic"><span>${cr ? `<span class="crumb" style="display:block;margin:0;">${escHtml(cr)}</span>` : ''}${escHtml(t.name)}</span>
-            <button class="chip" onclick="markStudied(${jsArg(t.id)})">✓ Studiato</button></div>`;
-    }).join('');
-    return `<div class="card">
-        <div class="section-label">Programma d'esame <span class="link-action" onclick="openProgramModal()">+ Incolla programma</span></div>
-        ${c.total ? `<div class="progress-label"><span>Copertura</span><span>${c.done}/${c.total} · ${pct}%</span></div>
-        <div class="progress-bar-bg" style="height:4px;margin-bottom:12px;"><div class="progress-bar-fill" style="width:${pct}%;background:var(--sub)"></div></div>` : ''}
-        ${plan ? `<p class="muted" style="margin-bottom:10px;">${plan}</p>` : ''}
-        ${c.todo ? `<div class="field-lbl" style="margin:6px 0 2px;">Da studiare (${c.todo})</div>${list}${todoRows.length > shown.length ? `<div class="muted" style="padding-top:8px;">…e altri ${todoRows.length - shown.length}: li trovi in Archivio</div>` : ''}`
-                 : `<p class="muted">${c.total ? '✓ Tutto il programma è stato studiato.' : "Incolla l'elenco degli argomenti del programma: diventano «da studiare» e qui vedi quanto ti manca e quanti farne al giorno."}</p>`}
-    </div>`;
 }
 function openProgramModal(){
     const sub = data.subjects[data.activeSub];
@@ -1017,7 +938,7 @@ function loadMap(){
     const key = data.lastModified + '|' + todayStr();
     if (_loadCache.key === key && _loadCache.map) return _loadCache.map;
     const m = {};
-    Object.values(data.subjects).forEach(s => s.topics.forEach(t => { if (!isTodo(t) && t.next) m[t.next] = (m[t.next] || 0) + 1; }));
+    Object.values(data.subjects).forEach(s => leaves(s).forEach(t => { if (!isTodo(t) && t.next) m[t.next] = (m[t.next] || 0) + 1; }));
     _loadCache = { key, map: m };
     return m;
 }
@@ -1108,17 +1029,212 @@ function subRetention(sub, name){
     const base = sub.retention || 0.9;
     return (sub.examBoost !== false && isExamModeFinal(name)) ? Math.max(base, 0.95) : base;
 }
-function schedule(t, q, sub, name){
-    const today = todayStr(), ff = fuzzFactor(t);
-    const a = sm2Schedule(t, q, today, ff);
-    const b = fsrsSchedule(t, q, today, ff, subRetention(sub, name));
-    const act = subAlgo(sub) === 'sm2' ? a : b;
-    let interval = act.interval, capped = false;
-    if (!act.requeue) {                    // mai oltre l'esame: al più il giorno prima
-        const ex = daysToExam(sub);
-        if (ex !== null && ex >= 2 && interval >= ex) { interval = ex - 1; capped = true; }
+// ── Fase di apprendimento (come i "passi" di Anki) ──────────────────────────
+// Un argomento appena studiato non va subito ai ripassi a giorni: lo ripeti a
+// distanza di minuti (es. 10 min → 1 ora). Solo quando lo sai passa a domani.
+const LEARN_PRESETS = { '10-60':[10, 60], '1-10':[1, 10], '15-60-240':[15, 60, 240], 'none':[] };
+const RELEARN_STEP = 10;                    // dopo un "Ripeti" in ripasso: si riprova tra 10 min
+function subLearnSteps(sub){ return Array.isArray(sub.learnSteps) ? sub.learnSteps : [10, 60]; }
+function learnKey(sub){ const s = JSON.stringify(subLearnSteps(sub)); return Object.keys(LEARN_PRESETS).find(k => JSON.stringify(LEARN_PRESETS[k]) === s) || '10-60'; }
+function containerIds(sub){ return new Set(sub.topics.map(t => t.parent).filter(Boolean)); }
+function leaves(sub){ const c = containerIds(sub); return sub.topics.filter(t => !c.has(t.id)); }
+function isLearning(t){ return !!(t.learn && typeof t.learn.due === 'number'); }
+function fmtDelay(min){
+    min = Math.max(1, Math.round(min));
+    if (min < 60) return min + ' min';
+    const h = min / 60, hs = Number.isInteger(h) ? String(h) : h.toFixed(1).replace('.', ',');
+    return hs + (h === 1 ? ' ora' : ' ore');
+}
+function fmtCountdown(ms){
+    if (ms <= 0) return 'adesso';
+    const m = Math.ceil(ms / 60000);
+    if (m < 60) return `tra ${m} min`;
+    const h = Math.floor(m / 60), r = m % 60;
+    return `tra ${h} h${r ? ' ' + r + ' min' : ''}`;
+}
+function startLearning(t, sub){
+    delete t.status; delete t.requeueAt;
+    t.interval = 1; t.easeFactor = 2.5; t.relearn = false; t.fsrs = null;
+    const steps = subLearnSteps(sub);
+    if (steps.length) { t.learn = { step: 0, due: Date.now() + steps[0] * 60000 }; t.next = todayStr(); }
+    else { t.learn = null; t.next = shiftDate(todayStr(), 1); }
+}
+function learnSchedule(t, q, sub, name){
+    const steps = subLearnSteps(sub).length ? subLearnSteps(sub) : [10];
+    const g = GRADE[q], today = todayStr(), ff = fuzzFactor(t), ef = t.easeFactor || 2.5;
+    const i = Math.min(t.learn.step || 0, steps.length - 1);
+    const st = fsrsState(t), ns = fsrsNextState(st, g, today);
+    if (g === 1) return { requeue: true, step: 0, delayMin: steps[0], ef, fsrs: ns };
+    if (g === 2) return { requeue: true, step: i, delayMin: i === 0 ? (steps.length > 1 ? (steps[0] + steps[1]) / 2 : steps[0] * 1.5) : steps[i], ef, fsrs: ns };
+    if (g === 3 && i + 1 < steps.length) return { requeue: true, step: i + 1, delayMin: steps[i + 1], ef, fsrs: ns };
+    let interval;                                    // superato: passa ai ripassi a giorni
+    if (subAlgo(sub) === 'sm2') interval = g === 4 ? 4 : 1;
+    else {
+        const ret = subRetention(sub, name);
+        const good = constrainIvl(Math.max(1, fIvl(fsrsNextState(st, 3, today).s, ret)), 1, ff);
+        interval = g === 4 ? Math.max(constrainIvl(Math.max(1, fIvl(fsrsNextState(st, 4, today).s, ret)), 1, ff), good + 1) : good;
     }
-    return { requeue: !!act.requeue, relearn: !!(a.relearn || b.relearn), interval, capped, ef: a.ef, fsrs: b.fsrs };
+    return { requeue: false, interval, ef, fsrs: ns, graduated: true };
+}
+function schedule(t, q, sub, name){
+    let r;
+    if (isLearning(t) && !t.relearn) r = learnSchedule(t, q, sub, name);
+    else {
+        const today = todayStr(), ff = fuzzFactor(t);
+        const a = sm2Schedule(t, q, today, ff);
+        const b = fsrsSchedule(t, q, today, ff, subRetention(sub, name));
+        const act = subAlgo(sub) === 'sm2' ? a : b;
+        r = { requeue: !!act.requeue, relearn: !!(a.relearn || b.relearn), interval: act.interval, ef: a.ef, fsrs: b.fsrs };
+        if (r.requeue) { r.step = 0; r.delayMin = q === 'incerto' ? RELEARN_STEP * 1.5 : RELEARN_STEP; }
+    }
+    r.capped = false;
+    if (!r.requeue) {                    // mai oltre l'esame: al più il giorno prima
+        const ex = daysToExam(sub);
+        if (ex !== null && ex >= 2 && r.interval >= ex) { r.interval = ex - 1; r.capped = true; }
+    }
+    return r;
+}
+function previewLabel(t, q, sub, name){ const r = schedule(t, q, sub, name); return r.requeue ? fmtDelay(r.delayMin) : fmtIvl(r.interval) + (r.capped ? ' ⚑' : ''); }
+function dueTopics(sub, subName){
+    const today = todayStr(), now = Date.now(), c = containerIds(sub);
+    let list = sub.topics.filter(t => !isTodo(t) && !c.has(t.id) && t.next && (isLearning(t) ? t.learn.due <= now : t.next <= today));
+    if (isExamModeFinal(subName)) list = list.filter(t => t.triage === 3);
+    // prima le ripetizioni di apprendimento (in ordine di scadenza), poi i ripassi
+    const key = t => isLearning(t) ? t.learn.due : Infinity;
+    return list.map((t, i) => ({ t, i })).sort((a, b) => (key(a.t) - key(b.t)) || (a.i - b.i)).map(x => x.t);
+}
+function learningSoon(sub, subName){
+    const now = Date.now(), c = containerIds(sub);
+    const today = todayStr();
+    let list = sub.topics.filter(t => !isTodo(t) && !c.has(t.id) && isLearning(t) && t.learn.due > now && localDateStr(new Date(t.learn.due)) === today);
+    if (isExamModeFinal(subName)) list = list.filter(t => t.triage === 3);
+    return list.sort((a, b) => a.learn.due - b.learn.due);
+}
+function soonListHtml(items, mixed){
+    if (!items.length) return '';
+    return `<div class="card"><div class="section-label">Da ripetere più tardi oggi</div>
+        ${items.map(x => `<div class="ready-row">
+            <span class="nm">${mixed ? `<span style="color:${x.sub.color}">${escHtml(x.name)}</span> · ` : ''}${escHtml(x.t.name)}</span>
+            <span class="tr-due" data-due="${x.t.learn.due}">${fmtCountdown(x.t.learn.due - Date.now())}</span>
+            <button class="chip" onclick="learnNow(${jsArg(x.t.id)},${jsArg(x.name)})">Ripeti ora</button>
+        </div>`).join('')}</div>`;
+}
+function learnNow(id, subName){
+    const loc = locateTopic(id, subName);
+    if (!loc || !isLearning(loc.t)) return;
+    loc.t.learn.due = Date.now(); loc.t.next = todayStr();
+    save(); refreshCurrent();
+}
+function withPreservedInputs(fn){
+    const vals = {};
+    document.querySelectorAll('.fb-input').forEach(i => { if (i.value) vals[i.id] = i.value; });
+    const y = window.scrollY;
+    fn();
+    Object.entries(vals).forEach(([id, v]) => { const el = document.getElementById(id); if (el) el.value = v; });
+    window.scrollTo(0, y);
+}
+// Controllo periodico: quando una ripetizione scade, avvisa e aggiorna la coda
+const _announced = new Set();
+let _tickReady = false;
+function learningTick(){
+    const now = Date.now(), newly = [];
+    Object.keys(data.subjects).forEach(n => {
+        const sub = data.subjects[n], c = containerIds(sub);
+        sub.topics.forEach(t => {
+            if (!isLearning(t) || c.has(t.id) || isTodo(t) || t.learn.due > now) return;
+            const k = t.id + ':' + t.learn.due;
+            if (!_announced.has(k)) { _announced.add(k); newly.push({ t, n }); }
+        });
+    });
+    document.querySelectorAll('[data-due]').forEach(el => { el.textContent = fmtCountdown(Number(el.dataset.due) - now); });
+    const first = !_tickReady; _tickReady = true;
+    if (first || !newly.length) return;
+    if (document.visibilityState === 'visible') {
+        showToast(`⏰ È ora di ripetere: ${newly[0].t.name}${newly.length > 1 ? ` e altri ${newly.length - 1}` : ''}`);
+        if (navigator.vibrate) { try { navigator.vibrate([150, 80, 150]); } catch (_) {} }
+    }
+    const inQueue = data.isGlobal ? (data.globalView === 'mixed' && !agendaQuery.trim()) : data.activeTab === 'ripasso';
+    if (inQueue && !isTyping() && !anyModalOpen()) withPreservedInputs(() => { data.isGlobal ? renderMainCalendar() : setSubTab('ripasso'); });
+    if (!data.isGlobal) updateDueBadges();
+}
+
+// ── Notifiche con l'app ntfy (arrivano anche ad app chiusa) ───────────────
+const NTFY_SENT_KEY = 'studyhub_ntfy_sent';
+function ntfyTopic(){
+    if (!settings.ntfyTopic) {
+        const a = new Uint8Array(10);
+        (window.crypto || {}).getRandomValues ? crypto.getRandomValues(a) : a.forEach((_, i) => { a[i] = Math.random() * 256; });
+        settings.ntfyTopic = 'studyhub-' + [...a].map(b => (b % 36).toString(36)).join('');
+        saveSettings();
+    }
+    return settings.ntfyTopic;
+}
+function appUrl(){ return location.origin + location.pathname; }
+async function ntfyPost(title, message, atMs){
+    const u = new URL((settings.ntfyServer || 'https://ntfy.sh').replace(/\/+$/, '') + '/' + encodeURIComponent(ntfyTopic()));
+    u.searchParams.set('title', title);
+    u.searchParams.set('tags', 'brain');
+    u.searchParams.set('priority', 'high');
+    u.searchParams.set('click', appUrl());
+    if (atMs && atMs - Date.now() > 15000) u.searchParams.set('delay', String(Math.round(atMs / 1000)));
+    try { const r = await fetch(u.toString(), { method:'POST', body: message }); return r.ok; }
+    catch (e) {
+        try { await fetch(u.toString(), { method:'POST', body: message, mode:'no-cors' }); return true; }
+        catch (_) { return false; }
+    }
+}
+// Programma l'avviso; se ce n'è già uno vicino (−3/+4 min) non ne manda un altro
+function notifyLater(names, subName, dueMs){
+    if (!settings.ntfyOn || !dueMs) return;
+    let sent = [];
+    try { sent = JSON.parse(localStorage.getItem(NTFY_SENT_KEY)) || []; } catch (_) {}
+    sent = sent.filter(x => x > Date.now() - 6 * 3600e3);
+    if (sent.some(x => x >= dueMs - 3 * 60000 && x <= dueMs + 4 * 60000)) return;
+    sent.push(dueMs);
+    localStorage.setItem(NTFY_SENT_KEY, JSON.stringify(sent));
+    const list = Array.isArray(names) ? names : [names];
+    const msg = `${list[0]}${list.length > 1 ? ` e altri ${list.length - 1}` : ''} · ${subName}\nTocca per aprire Study Hub`;
+    ntfyPost('⏰ È ora di ripetere', msg, dueMs).then(ok => {
+        if (ok) return;
+        try { const s = (JSON.parse(localStorage.getItem(NTFY_SENT_KEY)) || []).filter(x => x !== dueMs); localStorage.setItem(NTFY_SENT_KEY, JSON.stringify(s)); } catch (_) {}
+        showToast('⚠ Avviso non programmato: sei offline?');
+    });
+}
+async function ntfyTest(){
+    const ok = await ntfyPost('Study Hub', 'Notifica di prova: funziona! 🎉');
+    showToast(ok ? '✓ Inviata: controlla l\'app ntfy' : '⚠ Invio non riuscito: controlla la connessione');
+}
+function copyNtfyTopic(){
+    const t = ntfyTopic();
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(() => showToast('✓ Nome copiato'), () => showToast(t));
+    else showToast(t);
+}
+
+// ── Sposta un ripasso ───────────────────────────────────────────────────────
+function togglePostpone(id){ const el = document.getElementById(`pp-${id}`); if (el) el.classList.toggle('hidden'); }
+function postponeTopic(id, subName, when){
+    const loc = locateTopic(id, subName);
+    if (!loc) return;
+    const t = loc.t, today = todayStr();
+    const iso = typeof when === 'number' ? shiftDate(today, when) : parseDateInput(when);
+    if (!iso || iso <= today) { showToast('⚠ Scegli un giorno da domani in poi'); return; }
+    const snap = snapshot();
+    t.next = iso;
+    if (isLearning(t)) t.learn.due = parseLocalDate(iso).getTime();
+    delete t.requeueAt;
+    pushHistory(t, { d: today, ts: Date.now(), q: 'sposta', to: iso });
+    save(); refreshCurrent();
+    showToast(`⤳ “${t.name}” spostato a ${dueLabel(iso).t === 'domani' ? 'domani' : fmtDateLong(iso)}`, snap);
+}
+function postponeHtml(t, name){
+    const id = jsArg(t.id), sn = jsArg(name), eid = escHtml(t.id);
+    return `<div class="card-tools"><span class="link-action" onclick="togglePostpone(${id})">⤳ Sposta</span></div>
+        <div id="pp-${eid}" class="postpone hidden">
+            <button class="chip" onclick="postponeTopic(${id},${sn},1)">Domani</button>
+            <button class="chip" onclick="postponeTopic(${id},${sn},2)">Dopodomani</button>
+            <button class="chip" onclick="postponeTopic(${id},${sn},3)">Tra 3 giorni</button>
+            <label class="chip date-chip">📅 <input type="date" min="${shiftDate(todayStr(), 1)}" onchange="postponeTopic(${id},${sn},this.value)" aria-label="Scegli il giorno"></label>
+        </div>`;
 }
 function fmtIvl(n){
     if (n <= 1) return 'domani';
@@ -1126,7 +1242,6 @@ function fmtIvl(n){
     if (n < 365) return (n / 30).toFixed(1).replace('.', ',').replace(',0', '') + ' mesi';
     return (n / 365).toFixed(1).replace('.', ',').replace(',0', '') + ' anni';
 }
-function previewLabel(t, q, sub, name){ const r = schedule(t, q, sub, name); return r.requeue ? 'oggi' : fmtIvl(r.interval); }
 function memoryInfo(t){
     const st = fsrsState(t);
     if (!st) return null;
@@ -1134,52 +1249,265 @@ function memoryInfo(t){
     return { s: st.s, d: st.d, r: fR(el, st.s) };
 }
 function fmtDays(s){ return s < 1 ? '<1g' : s < 30 ? Math.round(s) + 'g' : s < 365 ? (s / 30).toFixed(1).replace('.', ',') + ' mesi' : (s / 365).toFixed(1).replace('.', ',') + ' anni'; }
-function algoLabel(sub){ return subAlgo(sub) === 'sm2' ? 'Anki classico' : `FSRS ${Math.round((sub.retention || 0.9) * 100)}%`; }
-
-// ── Ripasso (con feedback giornaliero) ──────────────────────────────────────
-// ── Ripasso (con feedback giornaliero) ──────────────────────────────────────
 function reviewCardHtml(t, sub, name, mixed){
-    const today = todayStr(), col = topicColor(t, sub), id = jsArg(t.id), sn = jsArg(name);
-    const requeued = t.requeueAt && localDateStr(new Date(t.requeueAt)) === today;
-    const late = daysFromToday(t.next);
+    const col = topicColor(t, sub), id = jsArg(t.id), sn = jsArg(name);
+    const learning = isLearning(t) && !t.relearn;
+    const late = learning ? 0 : daysFromToday(t.next);
     const btn = (q, key) => {
         const r = schedule(t, q, sub, name);
-        const lbl = r.requeue ? 'oggi' : fmtIvl(r.interval) + (r.capped ? ' ⚑' : '');
+        const lbl = r.requeue ? fmtDelay(r.delayMin) : fmtIvl(r.interval) + (r.capped ? ' ⚑' : '');
         return `<button class="rate-btn" style="--rc:${Q_INFO[q].color}" onclick="rate(${id},'${q}',${sn})"><span class="rate-lbl">${Q_INFO[q].label}</span><span class="rate-iv">${lbl}</span><span class="rate-key">${key}</span></button>`;
     };
     const mi = memoryInfo(t), nRev = t.history.filter(h => GRADE[h.q]).length;
-    const metaMain = subAlgo(sub) === 'fsrs'
+    let metaMain;
+    if (learning) { const steps = subLearnSteps(sub); metaMain = `<span class="learn-tag">In apprendimento</span> · ripetizione ${Math.min((t.learn.step || 0) + 1, Math.max(1, steps.length))} di ${Math.max(1, steps.length)}`; }
+    else if (t.relearn) metaMain = `<span class="learn-tag">Da riapprendere</span>`;
+    else metaMain = subAlgo(sub) === 'fsrs'
         ? (mi ? `Stabilità ${fmtDays(mi.s)} · difficoltà ${mi.d.toFixed(1).replace('.', ',')} · ricordo stimato ${Math.round(mi.r * 100)}%` : 'Primo ripasso')
         : `Intervallo ${t.interval}g · facilità ${t.easeFactor.toFixed(2).replace('.', ',')}`;
     const cr = breadcrumb(t, sub);
     const crumb = (mixed || cr) ? `<div class="crumb">${mixed ? `<span style="color:${sub.color}">${escHtml(name)}</span>${cr ? ' › ' : ''}` : ''}${escHtml(cr)}</div>` : '';
     const qs = t.questions.length ? `<ol class="q-list">${t.questions.map(q => `<li>${escHtml(q)}</li>`).join('')}</ol>` : '';
-    return `<div class="review-card${requeued ? ' requeued' : ''}" style="--c:${col};--sub:${sub.color}" id="rc-${escHtml(t.id)}">
+    return `<div class="review-card${learning ? ' learning' : ''}" style="--c:${col};--sub:${sub.color}" id="rc-${escHtml(t.id)}">
         ${crumb}
         <div class="review-name">${escHtml(t.name)}</div>
-        <div class="review-meta">${metaMain} · ${plural(nRev, 'ripasso', 'ripassi')}${late < 0 ? ` · <span class="rep">in ritardo ${-late}g</span>` : ''}${t.repeats ? ` · <span class="rep">ripetuto ${t.repeats}✕</span>` : ''}${requeued ? ' · in coda' : ''}</div>
+        <div class="review-meta">${metaMain} · ${plural(nRev, 'ripetizione', 'ripetizioni')}${late < 0 ? ` · <span class="rep">in ritardo ${-late}g</span>` : ''}${t.repeats ? ` · <span class="rep">ripetuto ${t.repeats}✕</span>` : ''}</div>
         ${qs}
         <input type="text" class="fb-input" id="fb-${escHtml(t.id)}" placeholder="Feedback di oggi (facoltativo)…" autocomplete="off">
         ${notesBlockHtml(t, false, qs ? '▸ Note / risposte' : null)}
         <div class="rate-grid">${btn('ripeti','1')}${btn('incerto','2')}${btn('consolida','3')}${btn('buono','4')}</div>
+        ${postponeHtml(t, name)}
     </div>`;
 }
 function renderRipassoTab(target, sub){
     const name = data.activeSub, examM = isExamModeFinal(name);
     const due = dueTopics(sub, name);
+    const soon = learningSoon(sub, name).map(t => ({ t, sub, name }));
     if (!due.length) {
-        const upcoming = sub.topics.filter(t => !isTodo(t) && !(examM && t.triage !== 3) && t.next > todayStr()).map(t => t.next).sort();
+        const c = containerIds(sub);
+        const upcoming = sub.topics.filter(t => !isTodo(t) && !c.has(t.id) && !isLearning(t) && !(examM && t.triage !== 3) && t.next > todayStr()).map(t => t.next).sort();
         const next = upcoming[0], nNext = next ? upcoming.filter(d => d === next).length : 0;
         const todo = coverage(sub).todo;
-        target.innerHTML = `<div class="card empty"><span class="big">✓</span>Sessione completata${examM ? ' · modalità esame' : ''}
-            ${next ? `<div style="margin-top:8px;">Prossimo ripasso: <b style="color:var(--text);">${dueLabel(next).t}</b> · ${plural(nNext, 'argomento', 'argomenti')}</div>` : ''}
-            ${todo ? `<div style="margin-top:8px;"><span class="link-action" style="color:var(--warning);" onclick="setSubTab('study')">${plural(todo, 'argomento', 'argomenti')} del programma da studiare →</span></div>` : ''}</div>`;
+        target.innerHTML = `<div class="card empty"><span class="big">✓</span>${soon.length ? 'Per ora hai finito' : 'Sessione completata'}${examM ? ' · modalità esame' : ''}
+            ${soon.length ? `<div style="margin-top:8px;">Prossima ripetizione: <b style="color:var(--text);" data-due="${soon[0].t.learn.due}">${fmtCountdown(soon[0].t.learn.due - Date.now())}</b></div>` : ''}
+            ${!soon.length && next ? `<div style="margin-top:8px;">Prossimo ripasso: <b style="color:var(--text);">${dueLabel(next).t}</b> · ${plural(nNext, 'argomento', 'argomenti')}</div>` : ''}
+            ${todo ? `<div style="margin-top:8px;"><span class="link-action" style="color:var(--warning);" onclick="setSubTab('study')">${plural(todo, 'argomento', 'argomenti')} del programma da studiare →</span></div>` : ''}</div>
+            ${soonListHtml(soon, false)}`;
         return;
     }
     const ex = daysToExam(sub);
-    target.innerHTML = `<div class="muted" style="margin-bottom:10px;">${plural(due.length, 'argomento', 'argomenti')} da ripassare · ${algoLabel(sub)}${subAlgo(sub) === 'fsrs' && subRetention(sub, name) > (sub.retention || 0.9) ? ' → 95% (esame)' : ''}${ex !== null && ex >= 2 ? " · ⚑ = anticipato prima dell'esame" : ''}</div>` +
-        due.map(t => reviewCardHtml(t, sub, name, false)).join('');
+    target.innerHTML = `<div class="muted" style="margin-bottom:10px;">${plural(due.length, 'argomento', 'argomenti')} da ripetere · ${algoLabel(sub)}${subAlgo(sub) === 'fsrs' && subRetention(sub, name) > (sub.retention || 0.9) ? ' → 95% (esame)' : ''}${ex !== null && ex >= 2 ? " · ⚑ = anticipato prima dell'esame" : ''}</div>` +
+        due.map(t => reviewCardHtml(t, sub, name, false)).join('') + soonListHtml(soon, false);
 }
+function rate(id, q, subName){
+    const loc = locateTopic(id, subName);
+    if (!loc) return;
+    const { t, sub, name } = loc;
+    const snap = snapshot();
+    const fbEl = document.getElementById(`fb-${id}`);
+    const note = fbEl ? fbEl.value.trim() : '';
+    const wasLearning = isLearning(t) && !t.relearn;
+    const r = schedule(t, q, sub, name);
+    t.easeFactor = r.ef;
+    t.fsrs = r.fsrs;
+    const today = todayStr();
+    const entry = { d: today, ts: Date.now(), q, iv: r.requeue ? 0 : r.interval, a: subAlgo(sub) };
+    if (r.requeue) entry.m = Math.round(r.delayMin);
+    if (note) entry.note = note;
+    pushHistory(t, entry);
+    if (q === 'ripeti' && !wasLearning) t.repeats += 1;      // nel giorno dello studio gli errori non contano come "critici"
+    delete t.requeueAt;
+    if (r.requeue) {
+        t.relearn = !!(t.relearn || r.relearn);
+        if (!wasLearning || r.relearn) t.interval = r.interval || 1;
+        t.learn = { step: r.step || 0, due: Date.now() + r.delayMin * 60000 };
+        t.next = localDateStr(new Date(t.learn.due));
+        notifyLater(t.name, name, t.learn.due);
+    } else {
+        t.learn = null; t.relearn = false;
+        t.interval = r.interval;
+        t.next = shiftDate(today, r.interval);
+    }
+    save();
+    if (data.isGlobal) { const y = window.scrollY; renderGlobal(document.getElementById('appContent')); window.scrollTo(0, y); }
+    else refreshTab();
+    showToast(r.requeue ? `↻ “${t.name}”: ripeti tra ${fmtDelay(r.delayMin)}`
+        : `✓ ${r.graduated ? 'Imparato! ' : ''}${Q_INFO[q].label} · ${r.interval === 1 ? 'domani' : 'tra ' + fmtIvl(r.interval)}${r.capped ? " (prima dell'esame)" : ''}${note ? ' · feedback salvato' : ''}`, snap);
+}
+function mixedQueue(){
+    const lists = Object.keys(data.subjects).map(n => ({ n, l: dueTopics(data.subjects[n], n).slice() })).filter(x => x.l.length);
+    const out = [];
+    while (lists.some(x => x.l.length)) lists.forEach(x => { if (x.l.length) out.push({ t: x.l.shift(), name: x.n, sub: data.subjects[x.n] }); });
+    const key = x => isLearning(x.t) ? x.t.learn.due : Infinity;
+    return out.map((x, i) => ({ ...x, i })).sort((a, b) => (key(a) - key(b)) || (a.i - b.i));
+}
+function renderMixedReview(area){
+    const q = mixedQueue();
+    const soon = [];
+    Object.keys(data.subjects).forEach(n => learningSoon(data.subjects[n], n).forEach(t => soon.push({ t, name: n, sub: data.subjects[n] })));
+    soon.sort((a, b) => a.t.learn.due - b.t.learn.due);
+    const nSub = new Set(q.map(x => x.name)).size;
+    area.innerHTML = (q.length
+        ? `<div class="muted" style="margin-bottom:10px;">${plural(q.length, 'argomento', 'argomenti')} da ${plural(nSub, 'materia', 'materie')}, alternate per allenare il ragionamento tra discipline</div>` +
+          q.map(x => reviewCardHtml(x.t, x.sub, x.name, true)).join('')
+        : `<div class="card empty"><span class="big">✓</span>${soon.length ? 'Per ora hai finito' : 'Nessun ripasso in sospeso in nessuna materia'}</div>`) + soonListHtml(soon, true) + loadForecastCard(null);
+}
+
+function renderStudyTab(target){
+    const sub = data.subjects[data.activeSub], steps = subLearnSteps(sub);
+    target.innerHTML = `<div class="card">
+        <div class="section-label">Sto studiando</div>
+        <div id="studyTriage">${triageBoxHtml(data.triage, n => `setTriage(${n})`)}</div>
+        <input type="text" id="inT" placeholder="Argomento (es. Scompenso cardiaco)" onkeydown="if(event.key==='Enter')addTopic()">
+        <textarea id="inSubs" placeholder="Sotto-argomenti, uno per riga (facoltativi)&#10;Es.&#10;Classificazione NYHA&#10;Terapia&#10;  ACE-inibitori" style="min-height:80px;"></textarea>
+        ${sub.topics.length ? `<div class="field-lbl">Dentro a (facoltativo)</div>
+        <select class="styled-select" id="inParent"><option value="">— Argomento principale —</option>${topicOptionsHtml(sub, null, '')}</select>` : ''}
+        <textarea id="inQ" placeholder="Domande d'esame, una per riga (facoltative)…" style="min-height:56px;"></textarea>
+        <textarea id="inN" placeholder="Note / risposte (facoltative)…" style="min-height:56px;"></textarea>
+        <button class="btn btn-primary" onclick="addTopic()">${steps.length ? `Inizia — prima ripetizione tra ${fmtDelay(steps[0])}` : 'Pianifica — primo ripasso domani'}</button>
+        <div class="set-hint">${steps.length ? `Lo ripeti a ${steps.map(fmtDelay).join(' e poi a ')} di distanza; solo quando lo sai passa ai ripassi dei giorni successivi.` : 'Ripetizioni del giorno disattivate per questa materia (⚙ della materia).'}</div>
+    </div>
+    ${programCardHtml(sub)}`;
+}
+function addSubtree(sub, items, parentId){
+    const stack = [], created = [];
+    items.forEach(it => {
+        const parent = it.level === 0 ? parentId : (stack[it.level - 1] || parentId);
+        let t = sub.topics.find(x => norm(x.name) === norm(it.name) && (x.parent || null) === (parent || null));
+        if (!t) { t = newTopic(it.name, '', null, data.triage, parent); t.status = 'todo'; sub.topics.push(t); created.push(t); }
+        stack[it.level] = t.id; stack.length = it.level + 1;
+    });
+    return created;
+}
+function addTopic(){
+    const sub = data.subjects[data.activeSub];
+    const inT = document.getElementById('inT'), inN = document.getElementById('inN'), inQ = document.getElementById('inQ'), inP = document.getElementById('inParent'), inS = document.getElementById('inSubs');
+    const name = inT.value.trim();
+    if (!name) { inT.focus(); return; }
+    const parent = inP && inP.value ? inP.value : null;
+    const qs = parseQuestions(inQ.value), subs = parseProgram(inS ? inS.value : '');
+    const snap = snapshot();
+    // se esiste già (es. dal programma) usa quello: stessa posizione, oppure ovunque se non hai scelto "Dentro a"
+    const cset = containerIds(sub);
+    const same = x => norm(x.name) === norm(name) && (isTodo(x) || cset.has(x.id) || subs.length);
+    let t = sub.topics.find(x => same(x) && (x.parent || null) === (parent || null)) || (!parent ? sub.topics.find(same) : null);
+    if (!t) { t = newTopic(name, '', null, data.triage, parent); t.status = 'todo'; sub.topics.push(t); }
+    if (inN.value.trim()) t.notes = t.notes ? t.notes + '\n' + inN.value : inN.value;
+    if (qs.length) t.questions = t.questions.concat(qs);
+    if (subs.length) addSubtree(sub, subs, t.id);
+    inT.value = ''; inN.value = ''; inQ.value = ''; if (inS) inS.value = '';
+    markStudied(t.id, snap);
+}
+// Segna come studiato: un argomento singolo, oppure tutti i sotto-argomenti ancora da studiare
+function markStudied(id, snapIn){
+    const loc = locateTopic(id);
+    if (!loc) return;
+    const { t, sub, name } = loc, snap = snapIn || snapshot(), today = todayStr();
+    const c = containerIds(sub);
+    let targets;
+    if (c.has(t.id)) {
+        const desc = descendantsOf(sub, t.id);
+        targets = sub.topics.filter(x => desc.has(x.id) && !c.has(x.id) && isTodo(x));
+        sub.topics.forEach(x => { if (desc.has(x.id) && c.has(x.id)) delete x.status; });
+        delete t.status;
+    } else targets = [t];
+    targets.forEach(x => { startLearning(x, sub); x.studiedOn = today; pushHistory(x, { d: today, ts: Date.now(), q: 'studio' }); });
+    save();
+    const firstDue = targets.filter(isLearning).map(x => x.learn.due).sort()[0];
+    if (firstDue) notifyLater(targets.map(x => x.name), name, firstDue);
+    refreshCurrent();
+    const steps = subLearnSteps(sub);
+    showToast(targets.length > 1
+        ? `✓ ${targets.length} sotto-argomenti in apprendimento${steps.length ? ` — prima ripetizione tra ${fmtDelay(steps[0])}` : ''}`
+        : `✓ “${t.name}” ${steps.length ? `in apprendimento — ripeti tra ${fmtDelay(steps[0])}` : 'studiato — ripasso domani'}`, snap);
+}
+function programCardHtml(sub){
+    const c = coverage(sub), pct = c.total ? Math.round(c.done / c.total * 100) : 0;
+    const ex = daysToExam(sub);
+    let plan = '';
+    if (c.todo && ex !== null && ex > 0) {
+        const buf = ex > 7 ? 3 : ex > 3 ? 1 : 0, days = Math.max(1, ex - buf), per = Math.ceil(c.todo / days);
+        plan = `Per finire ${buf ? `${buf} ${buf === 1 ? 'giorno' : 'giorni'} prima dell'esame` : "entro l'esame"}: <b style="color:var(--text);">${plural(per, 'argomento', 'argomenti')} al giorno</b>.`;
+    } else if (c.todo && ex === null) plan = "Imposta la data d'esame per calcolare il ritmo giornaliero.";
+    const cset = containerIds(sub), todoUnder = {};
+    sub.topics.forEach(t => {
+        if (cset.has(t.id) || !isTodo(t)) return;
+        let p = t.parent; const seen = new Set();
+        while (p && !seen.has(p)) { seen.add(p); todoUnder[p] = (todoUnder[p] || 0) + 1; const pt = sub.topics.find(x => x.id === p); p = pt ? pt.parent : null; }
+    });
+    const rows = treeOrder(sub).filter(({ t }) => cset.has(t.id) ? todoUnder[t.id] : isTodo(t));
+    const shown = rows.slice(0, 50);
+    const list = shown.map(({ t, depth }) => cset.has(t.id)
+        ? `<div class="todo-topic is-group" style="padding-left:${Math.min(depth, 5) * 14}px;"><span><b>${escHtml(t.name)}</b> <span class="muted">· ${todoUnder[t.id]} da studiare</span></span>
+            <button class="chip" onclick="markStudied(${jsArg(t.id)})">▶ Studiati tutti</button></div>`
+        : `<div class="todo-topic" style="padding-left:${Math.min(depth, 5) * 14}px;"><span>${escHtml(t.name)}</span>
+            <button class="chip" onclick="markStudied(${jsArg(t.id)})">✓ Studiato</button></div>`).join('');
+    return `<div class="card">
+        <div class="section-label">Programma d'esame <span class="link-action" onclick="openProgramModal()">+ Incolla programma</span></div>
+        ${c.total ? `<div class="progress-label"><span>Copertura</span><span>${c.done}/${c.total} · ${pct}%</span></div>
+        <div class="progress-bar-bg" style="height:4px;margin-bottom:12px;"><div class="progress-bar-fill" style="width:${pct}%;background:var(--sub)"></div></div>` : ''}
+        ${plan ? `<p class="muted" style="margin-bottom:10px;">${plan}</p>` : ''}
+        ${c.todo ? `<div class="field-lbl" style="margin:6px 0 2px;">Da studiare (${c.todo})</div>${list}${rows.length > shown.length ? `<div class="muted" style="padding-top:8px;">…e altri: li trovi in Archivio</div>` : ''}`
+                 : `<p class="muted">${c.total ? '✓ Tutto il programma è stato studiato.' : "Incolla l'elenco degli argomenti del programma: diventano «da studiare» e qui vedi quanto ti manca e quanti farne al giorno."}</p>`}
+    </div>`;
+}
+function coverage(sub){
+    const L = leaves(sub), todo = L.filter(isTodo).length;
+    return { total: L.length, todo, done: L.length - todo };
+}
+function applyFullReset(t, sub){
+    t.repeats = 0;
+    startLearning(t, sub || data.subjects[data.activeSub]);
+    pushHistory(t, { d: todayStr(), ts: Date.now(), q: 'reset', iv: 1 });
+}
+function resetTopic(id){
+    const loc = locateTopic(id);
+    if (!loc) return;
+    const { t, sub, name } = loc, c = containerIds(sub);
+    const list = c.has(t.id) ? sub.topics.filter(x => descendantsOf(sub, t.id).has(x.id) && !c.has(x.id) && !isTodo(x)) : [t];
+    if (!list.length) { showToast('Nessun sotto-argomento studiato da resettare'); return; }
+    confirmDialog({
+        title: 'Reset completo?',
+        msg: `${list.length > 1 ? `I ${list.length} sotto-argomenti di “${t.name}”` : `“${t.name}”`} ripartiranno come appena studiati, con le ripetizioni del giorno. Lo storico dei feedback resta.`,
+        ok: 'Reset'
+    }, () => {
+        const snap = snapshot();
+        list.forEach(x => applyFullReset(x, sub)); save();
+        const d = list.filter(isLearning).map(x => x.learn.due).sort()[0];
+        if (d) notifyLater(list.map(x => x.name), name, d);
+        refreshCurrent(); showToast(`✓ ${plural(list.length, 'argomento resettato', 'argomenti resettati')}`, snap);
+    });
+}
+function resetAllTopics(){
+    const sub = data.subjects[data.activeSub];
+    if (!sub) return;
+    const list = leaves(sub).filter(t => !isTodo(t));
+    if (!list.length) return;
+    confirmDialog({
+        title: 'Reset di tutta la materia?',
+        msg: `Tutti i ${list.length} argomenti studiati di “${data.activeSub}” ripartiranno come appena studiati, con le ripetizioni del giorno. Lo storico resta.`,
+        ok: 'Reset tutto'
+    }, () => {
+        const snap = snapshot();
+        list.forEach(t => applyFullReset(t, sub)); save();
+        const d = list.filter(isLearning).map(x => x.learn.due).sort()[0];
+        if (d) notifyLater(list.map(x => x.name), data.activeSub, d);
+        refreshTab();
+        showToast(`✓ ${plural(list.length, 'argomento resettato', 'argomenti resettati')}`, snap);
+    });
+}
+function applyImprevisto(){
+    const sub = data.subjects[data.activeSub];
+    const due = dueTopics(sub, data.activeSub).concat(learningSoon(sub, data.activeSub));
+    if (!due.length) { showToast('Nessun ripasso da spostare oggi'); return; }
+    const snap = snapshot(), tomorrow = shiftDate(todayStr(), 1);
+    due.forEach(t => { t.next = tomorrow; delete t.requeueAt; if (isLearning(t)) t.learn.due = parseLocalDate(tomorrow).getTime(); });
+    save(); render(); showToast(`✓ ${plural(due.length, 'ripasso spostato', 'ripassi spostati')} a domani`, snap);
+}
+function algoLabel(sub){ return subAlgo(sub) === 'sm2' ? 'Anki classico' : `FSRS ${Math.round((sub.retention || 0.9) * 100)}%`; }
+
+// ── Ripasso (con feedback giornaliero) ──────────────────────────────────────
+// ── Ripasso (con feedback giornaliero) ──────────────────────────────────────
 function notesBlockHtml(t, open, label){
     const id = escHtml(t.id);
     return `<span class="notes-toggle" onclick="toggleNotes(${jsArg(t.id)})">${label || '▸ Note'}${t.notes ? ' •' : ''}</span>
@@ -1193,37 +1521,6 @@ function pushHistory(t, entry){
     t.history.push(entry);
     if (t.history.length > HISTORY_CAP) t.history.splice(0, t.history.length - HISTORY_CAP);
 }
-function rate(id, q, subName){
-    const loc = locateTopic(id, subName);
-    if (!loc) return;
-    const { t, sub, name } = loc;
-    const snap = snapshot();
-    const fbEl = document.getElementById(`fb-${id}`);
-    const note = fbEl ? fbEl.value.trim() : '';
-    const r = schedule(t, q, sub, name);
-    t.easeFactor = r.ef;
-    t.fsrs = r.fsrs;
-    const today = todayStr();
-    const entry = { d: today, ts: Date.now(), q, iv: r.requeue ? 0 : r.interval, a: subAlgo(sub) };
-    if (note) entry.note = note;
-    pushHistory(t, entry);
-    if (q === 'ripeti') t.repeats += 1;
-    t.interval = r.interval;
-    if (r.requeue) {
-        t.relearn = t.relearn || r.relearn;
-        t.requeueAt = Date.now();
-        if (t.next > today) t.next = today;
-    } else {
-        t.relearn = false;
-        t.next = shiftDate(today, r.interval);
-        delete t.requeueAt;
-    }
-    save();
-    if (data.isGlobal) { const y = window.scrollY; renderGlobal(document.getElementById('appContent')); window.scrollTo(0, y); }
-    else refreshTab();
-    showToast(r.requeue ? `↻ “${t.name}” in fondo alla coda`
-        : `✓ ${Q_INFO[q].label} · ${r.interval === 1 ? 'domani' : 'tra ' + fmtIvl(r.interval)}${r.capped ? " (prima dell'esame)" : ''}${note ? ' · feedback salvato' : ''}`, snap);
-}
 function toggleNotes(id){ const el = document.getElementById(`nb-${id}`); if (el) el.classList.toggle('hidden'); }
 function saveNote(id){
     const t = findTopic(id), area = document.getElementById(`nt-${id}`);
@@ -1232,22 +1529,6 @@ function saveNote(id){
 }
 
 // ── Ripasso misto (tutte le materie, alternate) ─────────────────────────────
-function mixedQueue(){
-    const lists = Object.keys(data.subjects).map(n => ({ n, l: dueTopics(data.subjects[n], n).slice() })).filter(x => x.l.length);
-    const out = [];
-    while (lists.some(x => x.l.length)) lists.forEach(x => { if (x.l.length) out.push({ t: x.l.shift(), name: x.n, sub: data.subjects[x.n] }); });
-    const today = todayStr();
-    const rq = x => (x.t.requeueAt && localDateStr(new Date(x.t.requeueAt)) === today) ? x.t.requeueAt : 0;
-    return out.map((x, i) => ({ ...x, i })).sort((a, b) => (rq(a) - rq(b)) || (a.i - b.i));
-}
-function renderMixedReview(area){
-    const q = mixedQueue();
-    const nSub = new Set(q.map(x => x.name)).size;
-    area.innerHTML = (q.length
-        ? `<div class="muted" style="margin-bottom:10px;">${plural(q.length, 'argomento', 'argomenti')} da ${plural(nSub, 'materia', 'materie')}, alternate per allenare il ragionamento tra discipline</div>` +
-          q.map(x => reviewCardHtml(x.t, x.sub, x.name, true)).join('')
-        : `<div class="card empty"><span class="big">✓</span>Nessun ripasso in sospeso in nessuna materia</div>`) + loadForecastCard(null);
-}
 
 // ── Agenda materia ──────────────────────────────────────────────────────────
 function renderSubWeek(){
@@ -1258,7 +1539,7 @@ function renderSubWeek(){
     lbl.textContent = `Settimana dal ${monday.getDate()}/${monday.getMonth() + 1}`;
     const examM = isExamModeFinal(data.activeSub);
     list.innerHTML = weekSectionsHtml(monday, dStr => sub.topics
-        .filter(t => t.next === dStr && !(examM && t.triage !== 3))
+        .filter(t => t.next === dStr && !containerIds(sub).has(t.id) && !(examM && t.triage !== 3))
         .map(t => {
             const col = topicColor(t, sub);
             return `<div class="topic-card" style="border-left-color:${col};" onclick="openTopicInArchive(${jsArg(t.id)}, true)">
@@ -1325,7 +1606,8 @@ function buildArchItem(t, sub, meta){
 function fillArchItem(el, t){
     const sub = data.subjects[data.activeSub], meta = el._meta || {};
     const open = expandedTopics.has(t.id), id = jsArg(t.id);
-    const due = isTodo(t) ? { t: 'da studiare', c: 'todo' } : dueLabel(t.next);
+    const isCont = containerIds(sub).has(t.id);
+    const due = isCont ? groupDueLabel(sub, t.id) : isTodo(t) ? { t: 'da studiare', c: 'todo' } : isLearning(t) && t.learn.due > Date.now() && t.next === todayStr() ? { t: 'oggi ⏱', c: 'today' } : dueLabel(t.next);
     const cr = meta.crumb ? breadcrumb(t, sub) : '';
     el.classList.toggle('open', open);
     el.innerHTML = `<div class="topic-row" onclick="toggleArch(${id})">
@@ -1344,6 +1626,14 @@ function toggleKids(id){
     if (collapsedTopics.has(id)) collapsedTopics.delete(id); else collapsedTopics.add(id);
     const y = window.scrollY; renderArchList(); window.scrollTo(0, y);
 }
+function groupDueLabel(sub, id){
+    const c = containerIds(sub), desc = descendantsOf(sub, id);
+    const L = sub.topics.filter(x => desc.has(x.id) && !c.has(x.id));
+    const todo = L.filter(isTodo).length;
+    if (todo === L.length) return { t: 'da studiare', c: 'todo' };
+    const next = L.filter(x => !isTodo(x) && x.next).map(x => x.next).sort()[0];
+    return next ? dueLabel(next) : { t: '', c: '' };
+}
 function kvHtml(t){
     const sub = data.subjects[data.activeSub], mi = memoryInfo(t);
     const cells = subAlgo(sub) === 'fsrs'
@@ -1358,15 +1648,17 @@ function archDetailHtml(t){
     const histHtml = hist.length ? `<div class="hist">${shown.map(h => {
             const qi = Q_INFO[h.q] || Q_INFO.nota;
             return `<div class="hist-item" style="--hc:${qi.color}">
-                <div class="hist-head"><span class="hist-q">${qi.label}</span><span>${fmtDateLong(h.d)}</span>${GRADE[h.q] ? `<span>→ ${h.q === 'ripeti' || !h.iv ? 'stesso giorno' : fmtIvl(h.iv)}</span>` : ''}${h.a ? `<span style="opacity:.6;">${h.a === 'sm2' ? 'Anki' : 'FSRS'}</span>` : ''}
+                <div class="hist-head"><span class="hist-q">${qi.label}</span><span>${fmtDateLong(h.d)}</span>${GRADE[h.q] ? `<span>→ ${h.m ? fmtDelay(h.m) : (h.q === 'ripeti' || !h.iv ? 'stesso giorno' : fmtIvl(h.iv))}</span>` : ''}${h.q === 'sposta' && h.to ? `<span>→ ${fmtDateLong(h.to)}</span>` : ''}${h.a ? `<span style="opacity:.6;">${h.a === 'sm2' ? 'Anki' : 'FSRS'}</span>` : ''}
                     <span class="hist-edit" onclick="editHistNote(${id},${h.ts})" title="${h.note ? 'Modifica' : 'Aggiungi'} feedback">✎</span></div>
                 ${h.note ? `<div class="hist-note">${escHtml(h.note)}</div>` : ''}
             </div>`;
         }).join('')}</div>${hist.length > shown.length ? `<div class="hist-more" onclick="toggleHistAll(${id})">Mostra tutti (${hist.length})</div>` : (showAll && hist.length > 8 ? `<div class="hist-more" onclick="toggleHistAll(${id})">Mostra meno</div>` : '')}`
         : `<div class="muted" style="margin-bottom:14px;">Nessun ripasso registrato. Il feedback che scrivi in Ripasso apparirà qui, giorno per giorno.</div>`;
     const excl = descendantsOf(sub, t.id); excl.add(t.id);
+    if (containerIds(sub).has(t.id)) return groupDetailHtml(t, sub, excl);
     return `
         ${todo ? `<div class="todo-banner"><span>Da studiare</span><button class="chip on" onclick="markStudied(${id})">✓ Studiato oggi</button></div>` : kvHtml(t)}
+        ${isLearning(t) ? `<div class="muted" style="margin:-6px 0 14px;"><span class="learn-tag">${t.relearn ? 'Da riapprendere' : 'In apprendimento'}</span> · prossima ripetizione <span data-due="${t.learn.due}">${fmtCountdown(t.learn.due - Date.now())}</span></div>` : ''}
         <div class="set-lbl">Priorità</div>
         ${triageBoxHtml(t.triage, n => `updateTriageInHistory(${id},${n})`)}
         <div class="set-lbl" style="margin-top:16px;">Domande d'esame</div>
@@ -1385,6 +1677,30 @@ function archDetailHtml(t){
         </div>
         ${t.seconds ? `<div class="muted" style="margin-top:12px;font-size:.62rem;">Tempo di studio col timer: ${fmtDur(t.seconds)}</div>` : ''}
         ${t.created ? `<div class="muted" style="margin-top:6px;font-size:.62rem;">Registrato il ${fmtDate(t.created)}${t.studiedOn ? ` · studiato il ${fmtDate(t.studiedOn)}` : ''}</div>` : ''}`;
+}
+function groupDetailHtml(t, sub, excl){
+    const id = jsArg(t.id), c = containerIds(sub), desc = descendantsOf(sub, t.id);
+    const L = sub.topics.filter(x => desc.has(x.id) && !c.has(x.id));
+    const todo = L.filter(isTodo).length, now = Date.now(), today = todayStr();
+    const due = L.filter(x => !isTodo(x) && (isLearning(x) ? x.learn.due <= now : x.next && x.next <= today)).length;
+    return `
+        <div class="group-banner">${plural(L.length, 'sotto-argomento', 'sotto-argomenti')} · ${todo} da studiare · ${due} da ripetere ora</div>
+        <div class="muted" style="margin-bottom:12px;">È un argomento contenitore: si ripassano i suoi sotto-argomenti, uno per uno.</div>
+        ${todo ? `<button class="btn btn-primary" style="margin:0 0 12px;" onclick="markStudied(${id})">✓ Studiati tutti (${todo})</button>` : ''}
+        <div class="set-lbl">Priorità di tutti i sotto-argomenti</div>
+        ${triageBoxHtml(t.triage, n => `updateTriageInHistory(${id},${n})`)}
+        <div class="set-lbl" style="margin-top:16px;">Domande d'esame</div>
+        <textarea id="qs-${escHtml(t.id)}" placeholder="Una domanda per riga" style="min-height:64px;">${escHtml(t.questions.join('\n'))}</textarea>
+        <button class="btn btn-secondary btn-small" onclick="saveQuestions(${id})">Salva domande</button>
+        <div style="margin-top:14px;">${notesBlockHtml(t, !!t.notes, '▸ Note')}</div>
+        <div class="set-lbl" style="margin-top:16px;">Posizione</div>
+        <select class="styled-select" onchange="moveTopic(${id}, this.value)"><option value="">— Argomento principale —</option>${topicOptionsHtml(sub, excl, t.parent)}</select>
+        <div class="detail-actions" style="margin-top:6px;">
+            <button class="chip" onclick="openSubTopicModal(${id})">+ Sotto-argomento</button>
+            <button class="chip" onclick="resetTopic(${id})">↺ Reset di tutti</button>
+            <button class="chip" onclick="toggleArchiveTopic(${id})">${t.archived ? '⤒ Ripristina' : '⤓ Archivia'}</button>
+            <button class="chip warn" onclick="deleteTopic(${id})">Elimina</button>
+        </div>`;
 }
 function rerenderArchItem(id){
     const el = [...document.querySelectorAll('#historyList .arch-item')].find(x => x.dataset.id === id);
@@ -1424,12 +1740,12 @@ function openSubTopicModal(id){
 function saveSubTopic(studied){
     const sub = data.subjects[data.activeSub], name = document.getElementById('inSubTopic').value.trim();
     if (!name || !_subTopicParent) return;
-    const t = newTopic(name, '', studied ? shiftDate(todayStr(), 1) : null, data.triage, _subTopicParent);
-    if (!studied) t.status = 'todo'; else t.studiedOn = todayStr();
+    const t = newTopic(name, '', null, data.triage, _subTopicParent);
+    t.status = 'todo';
     sub.topics.push(t);
     collapsedTopics.delete(_subTopicParent);
-    save(); closeModal('modalSubTopic'); renderArchList();
-    showToast(studied ? '✓ Aggiunto — ripasso domani' : '✓ Aggiunto da studiare');
+    closeModal('modalSubTopic');
+    if (studied) markStudied(t.id); else { save(); renderArchList(); showToast('✓ Aggiunto da studiare'); }
 }
 function attachDrag(card, t){
     const handle = card.querySelector('.drag-handle');
@@ -1462,7 +1778,10 @@ function attachDrag(card, t){
 function updateTriageInHistory(id, n){
     const t = findTopic(id);
     if (!t) return;
-    t.triage = n; save();
+    t.triage = n;
+    const sub = data.subjects[data.activeSub];
+    if (containerIds(sub).has(id)) { const d = descendantsOf(sub, id); sub.topics.forEach(x => { if (d.has(x.id)) x.triage = n; }); save(); renderArchList(); return; }
+    save();
     if (isExamModeFinal(data.activeSub)) renderArchList(); else rerenderArchItem(id);
 }
 function openTopicInArchive(topicId, expand){
@@ -1516,40 +1835,6 @@ function saveHistNote(){
 }
 
 // ── Reset completo & archiviazione ──────────────────────────────────────────
-function applyFullReset(t){
-    t.interval = 1; t.easeFactor = 2.5; t.repeats = 0;
-    t.fsrs = null; t.relearn = false;
-    t.next = shiftDate(todayStr(), 1);
-    delete t.requeueAt;
-    pushHistory(t, { d: todayStr(), ts: Date.now(), q: 'reset', iv: 1 });
-}
-function resetTopic(id){
-    const t = findTopic(id);
-    if (!t) return;
-    confirmDialog({
-        title: 'Reset completo?',
-        msg: `“${t.name}” ripartirà da zero come appena studiato: memoria FSRS, intervallo e facilità azzerati, ripetizioni a 0, primo ripasso domani. Lo storico dei feedback resta.`,
-        ok: 'Reset'
-    }, () => {
-        const snap = snapshot();
-        applyFullReset(t); save(); refreshTab();
-        showToast('✓ Argomento resettato', snap);
-    });
-}
-function resetAllTopics(){
-    const sub = data.subjects[data.activeSub];
-    if (!sub || !sub.topics.length) return;
-    confirmDialog({
-        title: 'Reset di tutta la materia?',
-        msg: `Tutti i ${sub.topics.length} argomenti di “${data.activeSub}” ripartiranno da zero (memoria FSRS, intervallo e facilità azzerati, ripetizioni a 0, ripasso domani). Lo storico resta.`,
-        ok: 'Reset tutto'
-    }, () => {
-        const snap = snapshot();
-        const list = sub.topics.filter(t => !isTodo(t));
-        list.forEach(applyFullReset); save(); refreshTab();
-        showToast(`✓ ${plural(list.length, 'argomento resettato', 'argomenti resettati')}`, snap);
-    });
-}
 function toggleArchiveTopic(id){
     const t = findTopic(id);
     if (!t) return;
@@ -1571,14 +1856,6 @@ function deleteTopic(id){
         expandedTopics.delete(id);
         save(); refreshTab(); showToast('✓ Argomento eliminato', snap);
     });
-}
-function applyImprevisto(){
-    const today = todayStr(), sub = data.subjects[data.activeSub];
-    const due = sub.topics.filter(t => !isTodo(t) && t.next && t.next <= today);
-    if (!due.length) { showToast('Nessun ripasso da spostare oggi'); return; }
-    const snap = snapshot(), tomorrow = shiftDate(today, 1);
-    due.forEach(t => { t.next = tomorrow; delete t.requeueAt; });
-    save(); render(); showToast(`✓ ${plural(due.length, 'ripasso spostato', 'ripassi spostati')} a domani`, snap);
 }
 
 // ── Swipe tra tab ───────────────────────────────────────────────────────────
@@ -1683,7 +1960,7 @@ function forecastCounts(subName){
     const today = todayStr(), arr = new Array(30).fill(0);
     Object.keys(data.subjects).forEach(n => {
         if (subName && n !== subName) return;
-        data.subjects[n].topics.forEach(t => {
+        leaves(data.subjects[n]).forEach(t => {
             if (isTodo(t) || !t.next) return;
             const d = Math.max(0, daysBetween(today, t.next));
             if (d < 30) arr[d]++;
@@ -1704,7 +1981,7 @@ function loadForecastCard(subName){
 function examReadiness(sub){
     const ex = daysToExam(sub);
     if (ex === null || ex < 0) return null;
-    return sub.topics.map(t => {
+    return leaves(sub).map(t => {
         if (isTodo(t)) return { t, r: 0, todo: true };
         const st = fsrsState(t) || { s: W[2], last: t.studiedOn || t.created || shiftDate(t.next, -1) };
         return { t, r: fR(Math.max(0, daysBetween(st.last, sub.examDate)), st.s) };
@@ -1754,7 +2031,7 @@ function studyTimeCardHtml(sub){
     </div>`;
 }
 function renderStats(target, sub){
-    const topics = sub.topics, total = topics.length;
+    const topics = leaves(sub), total = topics.length;
     if (!total) { target.innerHTML = `<div class="card empty">Nessun argomento registrato</div>`; return; }
     const today = todayStr();
     const studied = topics.filter(t => !isTodo(t));
@@ -1860,7 +2137,6 @@ function flushStudyTime(){
 }
 function renderPomodoro(){
     const rem = pomoRemaining(), offset = POMO_C * (1 - rem / pomoTotal());
-    const hasYT = ytPlaylistUrl.trim().length > 0;
     const subName = (pomodoroRunning && pomoSub && data.subjects[pomoSub]) ? pomoSub : data.activeSub;
     const sub = data.subjects[subName];
     if (sub && pomoTopicId && !sub.topics.some(t => t.id === pomoTopicId)) pomoTopicId = '';
@@ -1889,22 +2165,7 @@ function renderPomodoro(){
             <button class="btn btn-secondary" onclick="pomodoroReset()">↺ Reset</button>
         </div>
         <div class="pomo-sessions">Sessioni completate oggi: ${pomoSessionsToday()}</div>
-        <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px;text-align:left;">
-            <div class="field-lbl" style="margin-bottom:6px;display:flex;align-items:center;">Musica da YouTube${helpBtn('ytmode')}</div>
-            <div style="display:flex;gap:8px;align-items:flex-end;">
-                <input type="text" id="ytUrlInput" placeholder="Incolla il link di una playlist o di un video" value="${escHtml(ytPlaylistUrl)}" style="flex:1;font-size:.8rem;margin-bottom:0;" onkeydown="if(event.key==='Enter')saveYTUrl()">
-                <button class="btn btn-secondary btn-small" onclick="saveYTUrl()">Salva</button>
-            </div>
-            ${hasYT ? `<div class="seg" style="margin-top:12px;">
-                    <button class="chip${ytMode === 'app' ? ' on' : ''}" onclick="setYTMode('app')">App YouTube</button>
-                    <button class="chip${ytMode !== 'app' ? ' on' : ''}" onclick="setYTMode('embed')">Dentro Study Hub</button>
-                </div>
-                <div class="muted" style="margin-top:8px;">${ytMode === 'app'
-                    ? "Quando avvii una sessione si apre l'app YouTube: con Premium la musica continua anche se esci o spegni lo schermo. Il timer qui va avanti da solo."
-                    : "La musica parte con il timer, ma si ferma se esci dall'app o spegni lo schermo."}</div>
-                ${ytMode === 'app' ? `<button class="btn btn-secondary" onclick="openYouTubeApp()">▶ Apri la playlist in YouTube</button>` : ''}`
-              : `<div class="muted" style="margin-top:8px;">Nessuna playlist collegata</div>`}
-        </div>
+        ${ytSectionHtml()}
     </div>`;
 }
 function setPomoTopic(v){ flushStudyTime(); pomoTopicId = v; savePomoState(); }
@@ -2014,26 +2275,102 @@ function youtubeWebUrl(){
     return ytPlaylistUrl;
 }
 // Apre l'app YouTube (dove funziona l'ascolto in background di Premium)
-function openYouTubeApp(){
-    if (!ytPlaylistUrl) return;
-    savePomoState();
-    const web = youtubeWebUrl(), ua = navigator.userAgent;
-    if (/Android/i.test(ua)) {
-        location.href = `intent://${web.replace(/^https:\/\//, '')}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(web)};end`;
-    } else if (/iPhone|iPad|iPod/i.test(ua)) {
-        location.href = web.replace(/^https:\/\//, 'youtube://');
-    } else window.open(web, '_blank', 'noopener');
+// ── Playlist YouTube: incolla, condividi dall'app YouTube, recenti ─────────
+const YT_RECENT_KEY = 'studyhub_yt_recent';
+function ytRecent(){ try { return JSON.parse(localStorage.getItem(YT_RECENT_KEY)) || []; } catch (_) { return []; } }
+function findYTLink(text){ const m = String(text || '').match(/https?:\/\/(?:www\.|m\.|music\.)?(?:youtube\.com|youtu\.be)\/[^\s"'<>]+/i); return m ? m[0] : null; }
+function ytLabel(url, title){
+    if (title) return title;
+    const pl = extractYTPlaylistId(url), v = extractYTVideoId(url);
+    return pl ? `Playlist …${pl.slice(-5)}` : v ? `Video …${v.slice(-5)}` : 'YouTube';
 }
-function ytPause(){ if (ytPlayer && ytPlayer.pauseVideo) { try { ytPlayer.pauseVideo(); } catch (_) {} } }
+function setYTLink(url, title){
+    if (!url || (!extractYTPlaylistId(url) && !extractYTVideoId(url))) { showToast('⚠ Link YouTube non riconosciuto'); return false; }
+    ytPlaylistUrl = url; localStorage.setItem('studyhub_yt_url', url);
+    const list = ytRecent().filter(x => x.url !== url);
+    const old = ytRecent().find(x => x.url === url);
+    list.unshift({ url, title: title || (old && old.title) || '' });
+    localStorage.setItem(YT_RECENT_KEY, JSON.stringify(list.slice(0, 6)));
+    if (ytMode === 'app') destroyYTPlayer(); else ensureYTPlayer(pomodoroRunning && !pomodoroBreak);
+    refreshPomodoro(); updateYTDock();
+    return true;
+}
 function saveYTUrl(){
     const inp = document.getElementById('ytUrlInput');
     if (!inp) return;
     const val = inp.value.trim();
-    if (val && !extractYTPlaylistId(val) && !extractYTVideoId(val)) { showToast('⚠ Link YouTube non riconosciuto'); return; }
-    ytPlaylistUrl = val; localStorage.setItem('studyhub_yt_url', ytPlaylistUrl);
-    if (!ytPlaylistUrl || ytMode === 'app') destroyYTPlayer(); else ensureYTPlayer(pomodoroRunning && !pomodoroBreak);
-    refreshPomodoro(); updateYTDock();
+    if (!val) { clearYT(); return; }
+    if (setYTLink(findYTLink(val) || val)) showToast('✓ Musica impostata');
 }
+function clearYT(){
+    ytPlaylistUrl = ''; localStorage.setItem('studyhub_yt_url', '');
+    destroyYTPlayer(); refreshPomodoro(); updateYTDock();
+}
+function selectRecentYT(i){ const x = ytRecent()[i]; if (x) setYTLink(x.url, x.title); }
+async function pasteYT(){
+    try {
+        const txt = await navigator.clipboard.readText();
+        const link = findYTLink(txt);
+        if (!link) { showToast('Negli appunti non c\'è un link YouTube'); return; }
+        if (setYTLink(link)) showToast('✓ Playlist incollata');
+    } catch (_) {
+        showToast('Non posso leggere gli appunti: incolla il link nel campo');
+        const d = document.getElementById('ytManual'); if (d) d.open = true;
+    }
+}
+function openYTUrl(web){
+    savePomoState();
+    const ua = navigator.userAgent;
+    if (/Android/i.test(ua)) location.href = `intent://${web.replace(/^https:\/\//, '')}#Intent;scheme=https;package=com.google.android.youtube;S.browser_fallback_url=${encodeURIComponent(web)};end`;
+    else if (/iPhone|iPad|iPod/i.test(ua)) location.href = web.replace(/^https:\/\//, 'youtube://');
+    else window.open(web, '_blank', 'noopener');
+}
+function openYouTubeApp(){ if (ytPlaylistUrl) openYTUrl(youtubeWebUrl()); }
+function findOnYouTube(){ openYTUrl('https://www.youtube.com/feed/playlists'); }
+function ytSectionHtml(){
+    const hasYT = ytPlaylistUrl.trim().length > 0, rec = ytRecent();
+    return `<div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px;text-align:left;">
+        <div class="field-lbl" style="margin-bottom:8px;display:flex;align-items:center;">Musica da YouTube${helpBtn('ytmode')}</div>
+        <div class="btn-row">
+            <button class="btn btn-secondary btn-small" onclick="pasteYT()">📋 Incolla link</button>
+            <button class="btn btn-secondary btn-small" onclick="findOnYouTube()">🔎 Le mie playlist</button>
+        </div>
+        <div class="muted" style="margin-top:8px;">Più semplice: nell'app YouTube apri la playlist → <b>Condividi</b> → <b>Study Hub</b>. (Serve l'app installata.)</div>
+        ${rec.length ? `<div class="seg" style="margin-top:12px;">${rec.map((x, i) => `<button class="chip${x.url === ytPlaylistUrl ? ' on' : ''}" onclick="selectRecentYT(${i})">${x.url === ytPlaylistUrl ? '♪ ' : ''}${escHtml(ytLabel(x.url, x.title).slice(0, 32))}</button>`).join('')}</div>` : ''}
+        <details id="ytManual" style="margin-top:10px;"><summary class="link-action">Inserisci il link a mano</summary>
+            <div style="display:flex;gap:8px;align-items:flex-end;margin-top:6px;">
+                <input type="text" id="ytUrlInput" placeholder="https://youtube.com/playlist?list=…" value="${escHtml(ytPlaylistUrl)}" style="flex:1;font-size:.8rem;margin-bottom:0;" onkeydown="if(event.key==='Enter')saveYTUrl()">
+                <button class="btn btn-secondary btn-small" onclick="saveYTUrl()">Salva</button>
+            </div>
+        </details>
+        ${hasYT ? `<div class="field-lbl" style="margin-top:14px;">Dove suona</div>
+            <div class="seg" style="margin-top:6px;">
+                <button class="chip${ytMode === 'app' ? ' on' : ''}" onclick="setYTMode('app')">App YouTube</button>
+                <button class="chip${ytMode !== 'app' ? ' on' : ''}" onclick="setYTMode('embed')">Dentro Study Hub</button>
+            </div>
+            <div class="muted" style="margin-top:8px;">${ytMode === 'app'
+                ? "Quando avvii lo studio si apre l'app YouTube: con Premium la musica continua anche se esci o spegni lo schermo. Il timer qui va avanti da solo."
+                : "La musica parte con il timer, ma si ferma se esci dall'app o spegni lo schermo."}</div>
+            ${ytMode === 'app' ? `<button class="btn btn-secondary" onclick="openYouTubeApp()">▶ Apri la playlist in YouTube</button>` : ''}
+            <div style="margin-top:8px;"><span class="link-action" onclick="clearYT()">✕ Togli la musica</span></div>`
+          : `<div class="muted" style="margin-top:8px;">Nessuna musica scelta</div>`}
+    </div>`;
+}
+// Link condiviso dall'app YouTube (Condividi → Study Hub)
+function handleShareTarget(){
+    const p = new URLSearchParams(location.search);
+    if (!p.has('url') && !p.has('text') && !p.has('title')) return;
+    const link = findYTLink(`${p.get('url') || ''} ${p.get('text') || ''}`);
+    try { history.replaceState(null, '', location.pathname); } catch (_) {}
+    if (!link) { showToast('⚠ Nel contenuto condiviso non c\'è un link YouTube'); return; }
+    const title = (p.get('title') || '').replace(/\s*-\s*YouTube\s*$/i, '').trim();
+    if (setYTLink(link, title)) {
+        const sub = data.activeSub && data.subjects[data.activeSub] ? data.activeSub : Object.keys(data.subjects)[0];
+        if (sub) { data.isGlobal = false; data.activeSub = sub; data.activeTab = 'pomodoro'; }
+        showToast(`✓ Musica impostata${title ? ': ' + title : ''}`);
+    }
+}
+function ytPause(){ if (ytPlayer && ytPlayer.pauseVideo) { try { ytPlayer.pauseVideo(); } catch (_) {} } }
 function updateYTDock(){
     const dock = document.getElementById('ytDock');
     if (dock) dock.classList.toggle('offscreen', !(ytPlaylistUrl && ytMode !== 'app' && !data.isGlobal && data.activeTab === 'pomodoro'));
@@ -2071,12 +2408,15 @@ function renderSubSettings(){
         <div class="set-sec">${lbl('Algoritmo di ripasso', 'algo')}
             <div class="seg">${chip(fsrs, 'FSRS (consigliato)', "setSubAlgo('fsrs')")}${chip(!fsrs, 'Anki classico', "setSubAlgo('sm2')")}</div>
             <div class="set-hint">Se cambi, le date già fissate restano: il nuovo metodo vale dal prossimo ripasso.</div></div>
+        <div class="set-sec">${lbl('Ripetizioni il giorno dello studio', 'learnSteps')}
+            <div class="seg">${[['10-60','10 min → 1 ora'],['1-10','1 → 10 min'],['15-60-240','15 min → 1 → 4 ore'],['none','Nessuna']].map(([k, l]) => chip(learnKey(s) === k, l, `setSubLearn('${k}')`)).join('')}</div></div>
         ${fsrs ? `<div class="set-sec">${lbl('Ritenzione desiderata', 'retention')}
             <div class="seg">${[0.85, 0.9, 0.95].map(v => chip(s.retention === v, Math.round(v * 100) + '%', `setSubRetention(${v})`)).join('')}</div>
             <div class="set-hint">90% va bene quasi sempre.</div></div>
         <div class="set-sec">${lbl("Più ripassi prima dell'esame", 'examBoost')}
             <div class="seg">${chip(s.examBoost !== false, 'Attivo', s.examBoost !== false ? '' : 'toggleSubExamBoost()')}${chip(s.examBoost === false, 'Disattivato', s.examBoost === false ? '' : 'toggleSubExamBoost()')}</div></div>` : ''}`;
 }
+function setSubLearn(k){ const s = editingSub(); if (!s || !LEARN_PRESETS[k]) return; s.learnSteps = LEARN_PRESETS[k].slice(); save(); renderSubSettings(); render(); }
 function setSubAlgo(v){ const s = editingSub(); if (!s) return; s.algo = v; save(); renderSubSettings(); render(); }
 function setSubRetention(v){ const s = editingSub(); if (!s) return; s.retention = v; save(); renderSubSettings(); render(); }
 function toggleSubExamBoost(){ const s = editingSub(); if (!s) return; s.examBoost = s.examBoost === false; save(); renderSubSettings(); render(); }
@@ -2137,6 +2477,7 @@ function confirmManualDate(){
     if (!t) { closeModal('modalEditDate'); return; }
     if (!iso) { showToast('⚠ Scegli una data'); return; }
     t.next = iso; delete t.requeueAt; delete t.status;
+    if (isLearning(t)) t.learn.due = parseLocalDate(iso).getTime();
     save(); closeModal('modalEditDate'); refreshCurrent();
 }
 
@@ -2495,6 +2836,16 @@ function renderSettings(){
     document.getElementById('settingsBody').innerHTML = `
         <div class="set-sec"><button class="btn btn-primary" style="margin-top:0;" onclick="openTutorial()">📖 Guida rapida</button></div>
         <div class="set-sec"><div class="set-lbl"><span>App sul telefono${helpBtn('install')}</span></div>${installSectionHtml()}</div>
+        <div class="set-sec">${lbl('Notifiche di ripetizione', 'ntfy')}
+            <div class="seg">${seg('ntfyOn', 1, 'Attive', settings.ntfyOn)}${seg('ntfyOn', 0, 'Disattivate', !settings.ntfyOn)}</div>
+            ${settings.ntfyOn ? `<div class="ntfy-box">
+                <ol class="ntfy-steps">
+                    <li>Installa l'app <b>ntfy</b> dal Play Store (o dall'App Store).</li>
+                    <li>Aprila, tocca <b>+</b>, incolla questo nome e tocca <b>Iscriviti</b>:</li>
+                </ol>
+                <div style="display:flex;gap:8px;align-items:center;margin:4px 0 10px;"><code class="ntfy-topic">${escHtml(ntfyTopic())}</code><button class="btn btn-secondary btn-small" onclick="copyNtfyTopic()">Copia</button></div>
+                <button class="btn btn-secondary" style="margin-top:0;" onclick="ntfyTest()">🔔 Invia una notifica di prova</button>
+            </div>` : `<div class="set-hint">Ti avvisa quando è ora di ripetere, anche ad app chiusa (serve l'app gratuita ntfy).</div>`}</div>
         <div class="set-sec">${lbl('Tema')}<div class="seg">${seg('theme','dark','○ Scuro', !light)}${seg('theme','light','◐ Chiaro', light)}</div></div>
         <div class="set-sec">${lbl('I tuoi dati', 'backup')}
             <div class="btn-row">
@@ -2527,6 +2878,7 @@ function setSetting(key, val){
     else if (key === 'archiveDays') { settings.archiveDays = Number(val); saveSettings(); render(); }
     else if (key === 'loadBalance') { settings.loadBalance = Number(val) === 1; saveSettings(); render(); }
     else if (key === 'dailyMax') { settings.dailyMax = Number(val); saveSettings(); render(); }
+    else if (key === 'ntfyOn') { settings.ntfyOn = Number(val) === 1; if (settings.ntfyOn) ntfyTopic(); saveSettings(); }
     renderSettings();
 }
 function toggleScriptBox(){ const box = document.getElementById('scriptBox'); if (box) box.classList.toggle('hidden'); }
@@ -2536,17 +2888,17 @@ const TUTORIAL = [
     { icon:'👋', title:'Benvenuta!', html:`Study Hub ti dice <b>cosa ripassare e quando</b>, così non dimentichi quello che hai studiato.<br><br>Ti bastano 2 minuti per capire come funziona.` },
     { icon:'📲', title:'Mettila sulla schermata Home', html:`Così si apre come una vera app e i tuoi dati restano al sicuro.<br><br><b>Android:</b> ⚙ Impostazioni → <b>Installa l'app</b>, oppure in Chrome menu <b>⋮</b> → <b>Installa app</b>.<br><b>iPhone:</b> in <b>Safari</b> tasto <b>Condividi</b> ⬆ → <b>Aggiungi alla schermata Home</b>.<br><br>Poi apri sempre l'app dall'icona.` },
     { icon:'➕', title:'1. Crea una materia', html:`Tocca il <b>+</b> nella barra in alto e scrivi il nome, per esempio “Anatomia”.<br><br>Ogni materia ha la sua scheda in alto.` },
-    { icon:'📝', title:'2. Dopo aver studiato', html:`Apri la materia → scheda <b>Studio</b> → scrivi l'argomento che hai studiato → <b>Pianifica</b>.<br><br>Il primo ripasso sarà <b>domani</b>.<br><br>Hai il programma d'esame? Usa <b>+ Incolla programma</b> e spunta gli argomenti man mano.` },
+    { icon:'📝', title:'2. Quando studi', html:`Apri la materia → scheda <b>Studio</b> → scrivi l'argomento e, sotto, i suoi sotto-argomenti → <b>Inizia</b>.<br><br>Dopo <b>10 minuti</b> l'app ti chiede di ripeterli, poi dopo <b>1 ora</b>. Solo quando li sai passano ai giorni successivi.<br><br>Hai il programma d'esame? Usa <b>+ Incolla programma</b>.` },
     { icon:'🔁', title:'3. Ogni giorno: Ripasso', html:`Apri la scheda <b>Ripasso</b>. Ripeti l'argomento a mente, poi scegli:<br><br>
         <span style="color:var(--danger)"><b>Ripeti</b></span> — non me lo ricordavo<br>
         <span style="color:var(--text-mid)"><b>Incerto</b></span> — ricordato a fatica<br>
         <span style="color:var(--accent)"><b>Da consolidare</b></span> — ricordato bene<br>
         <span style="color:var(--success-bright)"><b>Buono</b></span> — facilissimo<br><br>
-        L'app decide da sola quando riproportelo.` },
+        L'app decide da sola quando riproportelo. Non puoi oggi? Tocca <b>⤳ Sposta</b>.` },
     { icon:'📅', title:'4. Agenda', html:`Tocca <b>Agenda</b> in alto a sinistra per vedere ripassi e impegni di tutte le materie.<br><br>Dalla vista <b>Ripasso</b> dell'Agenda fai i ripassi di tutte le materie insieme.` },
     { icon:'🎯', title:"5. La data dell'esame", html:`Nella materia tocca <b>Imposta data esame</b>.<br><br>Vedrai il conto alla rovescia e i ripassi si organizzeranno per arrivare pronta. Nella scheda <b>Stat</b> trovi quanto sei preparata.` },
     { icon:'💾', title:'6. I tuoi dati', html:`I dati sono salvati <b>solo su questo telefono</b>.<br><br>Ogni tanto apri <b>⚙ Impostazioni</b> → <b>Esporta backup</b>: se cambi telefono, con <b>Importa backup</b> recuperi tutto.` },
-    { icon:'✨', title:'Ultimi consigli', html:`Hai toccato qualcosa per sbaglio? In basso compare <b>Annulla</b>.<br><br>Nelle impostazioni, il tasto <span class="help-btn" style="pointer-events:none;">?</span> spiega cosa fa ogni opzione.<br><br>Puoi rivedere questa guida da <b>⚙ Impostazioni → Guida rapida</b>.` }
+    { icon:'✨', title:'Ultimi consigli', html:`Hai toccato qualcosa per sbaglio? In basso compare <b>Annulla</b>.<br><br>Vuoi un avviso quando è ora di ripetere, anche ad app chiusa? ⚙ Impostazioni → <b>Notifiche</b>.<br><br>Nelle impostazioni, il tasto <span class="help-btn" style="pointer-events:none;">?</span> spiega cosa fa ogni opzione.<br><br>Puoi rivedere questa guida da <b>⚙ Impostazioni → Guida rapida</b>.` }
 ];
 let _tutStep = 0;
 function openTutorial(){ _tutStep = 0; closeModal('modalSettings'); renderTutorial(); openModal('modalTutorial'); }
@@ -2579,7 +2931,9 @@ const HELP = {
     csv:       { t:'Importa da Excel', b:`Per aggiungere tanti impegni o argomenti in una volta da un foglio Excel.<br><br>Il foglio deve avere le colonne: <b>Titolo</b>, <b>Data</b> (GG/MM/AAAA) e, se vuoi, <b>Ora</b>. In Excel: File → Salva come → <b>CSV</b>.` },
     script:    { t:'Script Google', b:`È il codice da copiare in Google per attivare la sincronizzazione. Ti serve solo se la stai configurando: altrimenti ignoralo.` },
     install:   { t:"Installare l'app", b:`Installata, Study Hub si apre dalla schermata Home come un'app vera: niente barra di Chrome, e se la chiudi per sbaglio non perdi nulla (nemmeno il timer).<br><br>Usa il pulsante <b>Installa l'app</b>. Se non funziona, lo stesso pulsante ti dice cosa fare.` },
-    ytmode:    { t:'Musica da YouTube', b:`<b>App YouTube</b> (consigliato): quando avvii lo studio si apre l'app YouTube con la tua playlist. Con <b>YouTube Premium</b> la musica continua anche se esci o spegni lo schermo. Poi torna qui: il timer è andato avanti da solo.<br><br><b>Dentro Study Hub</b>: la musica suona dentro l'app, ma si ferma appena esci o spegni lo schermo. Il motivo: YouTube non permette di usare Premium nei video inseriti in altre app.` },
+    ytmode:    { t:'Musica da YouTube', b:`<b>Scegliere la playlist:</b> nell'app YouTube apri la playlist → <b>Condividi</b> → <b>Study Hub</b>. Oppure copia il link e tocca <b>📋 Incolla link</b>.<br><br><b>App YouTube</b> (consigliato): quando avvii lo studio si apre l'app YouTube con la tua playlist. Con <b>YouTube Premium</b> la musica continua anche se esci o spegni lo schermo. Poi torna qui: il timer è andato avanti da solo.<br><br><b>Dentro Study Hub</b>: la musica suona dentro l'app, ma si ferma appena esci o spegni lo schermo. Il motivo: YouTube non permette di usare Premium nei video inseriti in altre app.` },
+    learnSteps:{ t:'Ripetizioni il giorno dello studio', b:`Come in Anki: appena studiato, un argomento non va subito a domani. Te lo faccio ripetere dopo pochi minuti, poi dopo un po' di più.<br><br>Con <b>10 min → 1 ora</b>: lo ripeti dopo 10 minuti; se va bene, dopo un'ora; se va bene di nuovo, passa ai ripassi dei giorni successivi.<br><br>Se dici <b>Ripeti</b> ricomincia da 10 minuti. Ogni sotto-argomento va per conto suo, così ripeti solo quelli che non sai.` },
+    ntfy:      { t:'Notifiche', b:`Study Hub da sola non può avvisarti quando è chiusa (è un limite delle app web). Per questo usa <b>ntfy</b>: un'app gratuita, senza account, che riceve gli avvisi.<br><br>1. Installa <b>ntfy</b> dal Play Store.<br>2. Tocca <b>+</b>, incolla il nome del canale che trovi qui, tocca <b>Iscriviti</b>.<br>3. Premi <b>Invia una notifica di prova</b>.<br><br>Il nome del canale è come una password: non condividerlo. Se ripeti un argomento prima dell'avviso, la notifica arriva lo stesso: ignorala.` },
     versions:  { t:'Versioni salvate', b:`Con la sincronizzazione attiva, Google conserva una copia dei tuoi dati per ogni giorno (fino a 30 giorni).<br><br>Se qualcosa va storto, scegli un giorno e tocca <b>Ripristina</b> per tornare a com'era.` }
 };
 // ── Installazione come app ──────────────────────────────────────────────────
@@ -2686,6 +3040,7 @@ document.addEventListener('visibilitychange', () => {
     if (pomodoroRunning) pomoTick();
     if (syncUrl && !syncInProgress && Date.now() - lastSyncAt > 60000) doSync(true);
     if (settings.orientation !== 'any') applyOrientation(false);
+    learningTick();
 });
 window.addEventListener('online', () => { if (syncUrl) doSync(true); });
 
@@ -2700,6 +3055,7 @@ function init(){
         m.addEventListener('click', e => { if (e.target === m && downOnBackdrop) closeModal(m.id); });
     });
     restorePomoState();
+    handleShareTarget();
     render();
     updateSyncBtn(getSyncStatus());
     applyOrientation(false);
@@ -2709,6 +3065,7 @@ function init(){
     }
     if (_loadError) showToast('⚠ Dati locali illeggibili — copia salvata, ripristina da sync o backup');
     if (syncUrl) setTimeout(() => doSync(true), 1500);
+    learningTick(); setInterval(learningTick, 10000);
     setInterval(() => {
         if (syncUrl && !syncInProgress && document.visibilityState === 'visible') doSync(true);
     }, 5 * 60 * 1000);

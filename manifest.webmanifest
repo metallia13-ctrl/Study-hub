@@ -1,10 +1,10 @@
 {
-  "id": "./",
+  "id": "studyhub-app-2026",
   "name": "Study Hub",
   "short_name": "Study Hub",
   "description": "Pianificazione dello studio con ripasso spaziato",
   "lang": "it",
-  "start_url": "./",
+  "start_url": "./?app=1",
   "scope": "./",
   "display": "standalone",
   "background_color": "#0a0a0a",
@@ -30,5 +30,15 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "share_target": {
+    "action": "./",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
 }

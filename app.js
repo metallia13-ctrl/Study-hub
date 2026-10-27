@@ -295,6 +295,18 @@ function confirmDialog(opts, onOk){
     openModal('modalConfirm');
 }
 
+// ── Scelta tra più opzioni ──────────────────────────────────────────────────
+let _choiceFns = [];
+function choiceDialog(title, msg, options){
+    _choiceFns = options.map(o => o.fn);
+    document.getElementById('choiceTitle').textContent = title;
+    document.getElementById('choiceMsg').textContent = msg;
+    document.getElementById('choiceBtns').innerHTML = options.map((o, i) =>
+        `<button class="btn ${o.primary ? 'btn-primary' : 'btn-secondary'} choice-btn" onclick="pickChoice(${i})">${escHtml(o.label)}${o.sub ? `<small>${escHtml(o.sub)}</small>` : ''}</button>`).join('');
+    openModal('modalChoice');
+}
+function pickChoice(i){ const fn = _choiceFns[i]; closeModal('modalChoice'); _choiceFns = []; if (fn) fn(); }
+
 // ── Render "sicuro" (non cancella ciò che stai scrivendo) ──────────────────
 let _pendingRender = false;
 function isTyping(){
@@ -315,13 +327,22 @@ function applyThemeIcon(){
     const b = document.getElementById('themeBtn');
     if (b) b.textContent = document.body.classList.contains('light') ? '◐' : '○';
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = document.body.classList.contains('light') ? '#f5f0e8' : '#0a0a0a';
+    if (meta) meta.content = (getComputedStyle(document.body).getPropertyValue('--bg') || '#101215').trim();
 }
 function setTheme(light){
     document.body.classList.toggle('light', light);
     localStorage.setItem('studyhub_theme', light ? 'light' : 'dark');
     applyThemeIcon();
 }
+const PALETTES = { azzurro: { label:'Azzurro', dot:'#7dd3fc' }, rosa: { label:'Rosa', dot:'#f5a6c8' }, verde: { label:'Verde', dot:'#90d8a9' } };
+function currentPalette(){ const p = localStorage.getItem('studyhub_palette'); return PALETTES[p] ? p : 'azzurro'; }
+function applyPalette(){
+    const p = currentPalette();
+    document.body.classList.remove('pal-rosa', 'pal-verde');
+    if (p !== 'azzurro') document.body.classList.add('pal-' + p);
+    applyThemeIcon();
+}
+function setPalette(p){ localStorage.setItem('studyhub_palette', PALETTES[p] ? p : 'azzurro'); applyPalette(); }
 function toggleTheme(){ setTheme(!document.body.classList.contains('light')); if (!document.getElementById('modalSettings').classList.contains('hidden')) renderSettings(); }
 
 async function applyOrientation(verbose){
@@ -1223,12 +1244,13 @@ function phoneNotify(title, body, tag){
     else fallback();
 }
 function phoneNotifStatus(){
+    if (isIOS() && !isStandalone()) return "Su iPhone le notifiche funzionano solo dall'app aggiunta alla schermata Home (Safari → Condividi → Aggiungi alla schermata Home).";
     if (!('Notification' in window)) return 'Questo browser non supporta le notifiche.';
     if (Notification.permission === 'denied') return "Permesso negato: riattivalo da Chrome → ⋮ → Impostazioni → Impostazioni sito → Notifiche.";
     return "Arrivano finché l'app è aperta, anche in finestra pop-up o a schermo diviso.";
 }
 async function enablePhoneNotif(){
-    if (!('Notification' in window)) { showToast('Questo browser non supporta le notifiche'); return; }
+    if (!('Notification' in window)) { showToast(isIOS() && !isStandalone() ? "Su iPhone: prima aggiungi l'app alla schermata Home" : 'Questo browser non supporta le notifiche'); return; }
     let p = Notification.permission;
     if (p === 'default') { try { p = await Notification.requestPermission(); } catch (_) {} }
     settings.phoneNotif = p === 'granted';
@@ -1571,12 +1593,28 @@ function resetAllTopics(){
     });
 }
 function applyImprevisto(){
-    const sub = data.subjects[data.activeSub];
-    const due = dueTopics(sub, data.activeSub).concat(learningSoon(sub, data.activeSub));
-    if (!due.length) { showToast('Nessun ripasso da spostare oggi'); return; }
-    const snap = snapshot(), tomorrow = shiftDate(todayStr(), 1);
-    due.forEach(t => { t.next = tomorrow; delete t.requeueAt; if (isLearning(t)) t.learn.due = parseLocalDate(tomorrow).getTime(); });
-    save(); render(); showToast(`✓ ${plural(due.length, 'ripasso spostato', 'ripassi spostati')} a domani`, snap);
+    const name = data.activeSub, sub = data.subjects[name];
+    const today = todayStr(), tomorrow = shiftDate(today, 1);
+    const todayList = dueTopics(sub, name).concat(learningSoon(sub, name));
+    const all = leaves(sub).filter(t => !isTodo(t) && t.next);
+    if (!all.length) { showToast('Nessun ripasso da spostare'); return; }
+    const moveLearn = (t, toIso) => { if (isLearning(t)) t.learn.due = Math.max(t.learn.due + DAY_MS, parseLocalDate(toIso).getTime()); };
+    const opts = [];
+    if (todayList.length) opts.push({ label: `Solo quelli di oggi → domani (${todayList.length})`, sub: 'Gli altri giorni restano come sono: domani avrai più ripassi.', primary: true, fn: () => {
+        const snap = snapshot();
+        todayList.forEach(t => { t.next = tomorrow; delete t.requeueAt; if (isLearning(t)) t.learn.due = parseLocalDate(tomorrow).getTime(); });
+        save(); render(); showToast(`✓ ${plural(todayList.length, 'ripasso spostato', 'ripassi spostati')} a domani`, snap);
+    } });
+    opts.push({ label: `Fai slittare tutto di un giorno (${all.length})`, sub: `Tutti i ripassi di “${name}” si spostano avanti di un giorno: il carico resta distribuito come prima.`, primary: !todayList.length, fn: () => {
+        const snap = snapshot();
+        all.forEach(t => {
+            const to = t.next <= today ? tomorrow : shiftDate(t.next, 1);
+            t.next = to; delete t.requeueAt;
+            if (isLearning(t)) { moveLearn(t, to); t.next = localDateStr(new Date(t.learn.due)); }
+        });
+        save(); render(); showToast(`✓ Tutto spostato avanti di un giorno (${all.length})`, snap);
+    } });
+    choiceDialog('Imprevisto: come spostare?', todayList.length ? `Oggi in “${name}” hai ${plural(todayList.length, 'ripasso', 'ripassi')}.` : `Oggi in “${name}” non hai ripassi.`, opts);
 }
 function algoLabel(sub){ return subAlgo(sub) === 'sm2' ? 'Anki classico' : `FSRS ${Math.round((sub.retention || 0.9) * 100)}%`; }
 
@@ -2911,6 +2949,8 @@ function renderSettings(){
     const lbl = (text, key) => `<div class="set-lbl"><span>${text}${key ? helpBtn(key) : ''}</span></div>`;
     document.getElementById('settingsBody').innerHTML = `
         <div class="set-sec"><button class="btn btn-primary" style="margin-top:0;" onclick="openTutorial()">📖 Guida rapida</button></div>
+        <div class="set-sec">${lbl('Aspetto')}<div class="seg">${seg('theme','dark','○ Scuro', !light)}${seg('theme','light','◐ Chiaro', light)}</div>
+            <div class="seg" style="margin-top:8px;">${Object.entries(PALETTES).map(([k, v]) => `<button class="chip${currentPalette() === k ? ' on' : ''}" onclick="setSetting('palette','${k}')"><span class="pal-dot" style="background:${v.dot}"></span>${v.label}</button>`).join('')}</div></div>
         <div class="set-sec"><div class="set-lbl"><span>App sul telefono${helpBtn('install')}</span></div>${installSectionHtml()}</div>
         <div class="set-sec">${lbl('Notifiche del telefono', 'phoneNotif')}
             <div class="seg">${seg('phoneNotif', 1, 'Attive', settings.phoneNotif)}${seg('phoneNotif', 0, 'Disattivate', !settings.phoneNotif)}</div>
@@ -2928,7 +2968,7 @@ function renderSettings(){
                 <div style="display:flex;gap:8px;align-items:center;margin:4px 0 10px;"><code class="ntfy-topic">${escHtml(ntfyTopic())}</code><button class="btn btn-secondary btn-small" onclick="copyNtfyTopic()">Copia</button></div>
                 <button class="btn btn-secondary" style="margin-top:0;" onclick="ntfyTest()">🔔 Invia una notifica di prova</button>
             </div>` : `<div class="set-hint">Facoltativo: serve l'app gratuita ntfy.</div>`}</div>
-        <div class="set-sec">${lbl('Tema')}<div class="seg">${seg('theme','dark','○ Scuro', !light)}${seg('theme','light','◐ Chiaro', light)}</div></div>
+
         <div class="set-sec">${lbl('I tuoi dati', 'backup')}
             <div class="btn-row">
                 <button class="btn btn-secondary" style="margin-top:0;" onclick="exportData()">⬇ Esporta backup</button>
@@ -2956,6 +2996,7 @@ function renderSettings(){
 }
 function setSetting(key, val){
     if (key === 'theme') setTheme(val === 'light');
+    else if (key === 'palette') setPalette(val);
     else if (key === 'orientation') { settings.orientation = val; saveSettings(); applyOrientation(true); }
     else if (key === 'archiveDays') { settings.archiveDays = Number(val); saveSettings(); render(); }
     else if (key === 'loadBalance') { settings.loadBalance = Number(val) === 1; saveSettings(); render(); }
@@ -3073,9 +3114,15 @@ async function openInstallCheck(){
         }
         ok(iconsOk && (man.icons || []).length >= 2, 'Icone presenti', 'Carica icon-192.png, icon-512.png e icon-maskable-512.png accanto a index.html.');
     }
-    let sw = false;
-    try { const reg = 'serviceWorker' in navigator && await navigator.serviceWorker.getRegistration(); sw = !!(reg && (reg.active || reg.waiting || reg.installing)); } catch (_) {}
-    ok(sw, 'Service worker attivo', 'Carica sw.js accanto a index.html, poi ricarica la pagina due volte.');
+    let sw = false, swErr = '', swFile = null;
+    try { const r = await fetch('sw.js', { cache:'no-store' }); swFile = r.ok; } catch (_) {}
+    if ('serviceWorker' in navigator) {
+        try { const reg = await navigator.serviceWorker.getRegistration(); sw = !!(reg && (reg.active || reg.waiting || reg.installing)); } catch (_) {}
+        if (!sw && swFile) { try { await navigator.serviceWorker.register('sw.js'); sw = true; } catch (e) { swErr = e && e.message ? e.message : String(e); } }
+    } else swErr = 'il browser non li permette (navigazione privata o blocco dei cookie?)';
+    if (isIOS() && !sw) {
+        rows.push(`<div class="chk-row"><span class="muted">–</span><span>Service worker non attivo<br><span class="muted">Su iPhone non serve per installare l'app: serve solo a farla funzionare senza internet. Puoi procedere.${swErr ? ' (' + escHtml(swErr) + ')' : ''}</span></span></div>`);
+    } else ok(sw, 'Service worker attivo', swFile === false ? 'Il file sw.js non si trova su GitHub: caricalo accanto a index.html.' : `Ricarica la pagina due volte.${swErr ? ' Errore: ' + escHtml(swErr) : ''}`);
     const steps = isIOS()
         ? `<b>Su iPhone</b> usa <b>Safari</b> (non Chrome): tasto <b>Condividi</b> ⬆ → <b>Aggiungi alla schermata Home</b>.`
         : `<b>Su Android</b> usa <b>Chrome</b>: menu <b>⋮</b> in alto a destra → <b>Installa app</b>.<br><br>
@@ -3133,7 +3180,7 @@ window.addEventListener('online', () => { if (syncUrl) doSync(true); });
 let _lastDay = todayStr();
 function init(){
     if (localStorage.getItem('studyhub_theme') === 'light') document.body.classList.add('light');
-    applyThemeIcon();
+    applyPalette();
     document.querySelectorAll('.modal-overlay').forEach(m => {
         let downOnBackdrop = false;
         m.addEventListener('mousedown', e => { downOnBackdrop = e.target === m; });

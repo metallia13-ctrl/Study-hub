@@ -2,7 +2,7 @@
 // Strategia "network-first" per i file dell'app: quando pubblichi una nuova
 // versione su GitHub Pages la ricevi subito; offline usa la copia in cache.
 // Incrementa CACHE_VERSION ad ogni rilascio per pulire le cache vecchie.
-const CACHE_VERSION = 'studyhub-v17';
+const CACHE_VERSION = 'studyhub-v18';
 const APP_SHELL = ['./', './index.html', './style.css', './app.js', './manifest.webmanifest',
                    './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
 
@@ -38,4 +38,14 @@ self.addEventListener('fetch', e => {
             })
             .catch(() => caches.match(req).then(r => r || caches.match('./index.html')))
     );
+});
+
+// Tocco su una notifica: torna all'app (o la apre)
+self.addEventListener('notificationclick', e => {
+    e.notification.close();
+    const url = (e.notification.data && e.notification.data.url) || './';
+    e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+        for (const c of list) { if ('focus' in c) return c.focus(); }
+        return self.clients.openWindow ? self.clients.openWindow(url) : null;
+    }));
 });

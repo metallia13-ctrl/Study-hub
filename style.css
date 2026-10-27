@@ -377,3 +377,18 @@ body.light .t-dot.active{border-color:rgba(0,0,0,.18);}
 .todo-topic.is-group{border-bottom-color:var(--border);}
 details summary{cursor:pointer;list-style:none;}
 details summary::-webkit-details-marker{display:none;}
+
+/* ── v18: modalità mini ──────────────────────────────────────────────── */
+body.mini .topbar{display:none;}
+body.mini .container{padding:10px 10px 24px;max-width:520px;}
+.mini-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.mini-head .brand{display:block;border:none;padding:0;font-size:1rem;}
+.mini-timer{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;margin-bottom:10px;border:1px solid var(--border);background:var(--bg2);font-size:.8rem;}
+.mini-timer b{font-family:var(--serif);font-size:1.15rem;font-weight:400;}
+.mini-card{padding:12px 12px 10px;margin-bottom:8px;}
+.mini-card .review-name{font-size:1.05rem;}
+.mini-card .rate-grid{grid-template-columns:1fr 1fr;margin-top:10px;}
+.mini-card .rate-btn{padding:8px 4px;}
+.mini-empty{text-align:center;padding:30px 10px;color:var(--text-mid);font-size:.85rem;line-height:1.6;}
+.mini-empty .big{font-family:var(--serif);font-size:1.8rem;color:var(--success-bright);display:block;margin-bottom:4px;}
+.mini-count{font-family:var(--serif);font-size:1.6rem;font-weight:400;color:var(--text);}

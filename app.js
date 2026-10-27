@@ -95,7 +95,7 @@ function parseTimeInput(str){
 
 // ── Impostazioni del dispositivo (non sincronizzate) ───────────────────────
 let settings = (() => {
-    try { return Object.assign({ orientation:'any', archiveDays:30, loadBalance:true, dailyMax:0, ntfyOn:false, ntfyTopic:'', ntfyServer:'https://ntfy.sh' }, JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}); }
+    try { return Object.assign({ orientation:'any', archiveDays:30, loadBalance:true, dailyMax:0, phoneNotif:false, ntfyOn:false, ntfyTopic:'', ntfyServer:'https://ntfy.sh' }, JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}); }
     catch (_) { return { orientation:'any', archiveDays:30, loadBalance:true, dailyMax:0 }; }
 })();
 function saveSettings(){ localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
@@ -364,6 +364,8 @@ function setView(view, sub = null){
 
 function render(){
     _pendingRender = false;
+    document.body.classList.toggle('mini', miniMode);
+    if (miniMode) { renderMini(document.getElementById('appContent')); updateYTDock(); return; }
     if (!data.isGlobal && !data.subjects[data.activeSub]) { data.isGlobal = true; data.activeSub = null; }
     renderTabs();
     const app = document.getElementById('appContent');
@@ -841,6 +843,7 @@ function newTopic(name, notes, next, triage, parent, questions){
 }
 function parseQuestions(text){ return String(text || '').split('\n').map(s => s.replace(/^\s*(?:[-*•·]|\d+[.)])\s*/, '').trim()).filter(Boolean); }
 function refreshCurrent(){
+    if (miniMode) { render(); return; }
     const y = window.scrollY;
     if (data.isGlobal) renderMainCalendar();
     else if (data.activeTab === 'history') { renderArchList(); updateDueBadges(); }
@@ -1149,6 +1152,8 @@ function learningTick(){
     document.querySelectorAll('[data-due]').forEach(el => { el.textContent = fmtCountdown(Number(el.dataset.due) - now); });
     const first = !_tickReady; _tickReady = true;
     if (first || !newly.length) return;
+    phoneNotify('⏰ È ora di ripetere', `${newly[0].t.name}${newly.length > 1 ? ` e altri ${newly.length - 1}` : ''} · ${newly[0].n}`, 'learn');
+    if (miniMode) { if (!isTyping() && !anyModalOpen()) render(); return; }
     if (document.visibilityState === 'visible') {
         showToast(`⏰ È ora di ripetere: ${newly[0].t.name}${newly.length > 1 ? ` e altri ${newly.length - 1}` : ''}`);
         if (navigator.vibrate) { try { navigator.vibrate([150, 80, 150]); } catch (_) {} }
@@ -1208,6 +1213,74 @@ function copyNtfyTopic(){
     const t = ntfyTopic();
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(() => showToast('✓ Nome copiato'), () => showToast(t));
     else showToast(t);
+}
+// ── Notifiche del telefono (con l'app aperta, anche in pop-up) ─────────────
+function phoneNotify(title, body, tag){
+    if (!settings.phoneNotif || !('Notification' in window) || Notification.permission !== 'granted') return;
+    const opts = { body, tag: tag || 'studyhub', renotify: true, icon: 'icon-192.png', badge: 'icon-192.png', vibrate: [150, 80, 150], data: { url: appUrl() } };
+    const fallback = () => { try { new Notification(title, opts); } catch (_) {} };
+    if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistration().then(r => r ? r.showNotification(title, opts) : fallback()).catch(fallback);
+    else fallback();
+}
+function phoneNotifStatus(){
+    if (!('Notification' in window)) return 'Questo browser non supporta le notifiche.';
+    if (Notification.permission === 'denied') return "Permesso negato: riattivalo da Chrome → ⋮ → Impostazioni → Impostazioni sito → Notifiche.";
+    return "Arrivano finché l'app è aperta, anche in finestra pop-up o a schermo diviso.";
+}
+async function enablePhoneNotif(){
+    if (!('Notification' in window)) { showToast('Questo browser non supporta le notifiche'); return; }
+    let p = Notification.permission;
+    if (p === 'default') { try { p = await Notification.requestPermission(); } catch (_) {} }
+    settings.phoneNotif = p === 'granted';
+    saveSettings(); renderSettings();
+    if (settings.phoneNotif) phoneNotify('Study Hub', 'Notifiche attive ✓ Ti avviserò quando è ora di ripetere.', 'test');
+    else showToast('Permesso non concesso: senza, le notifiche non possono comparire');
+}
+
+// ── Modalità mini (per tenere l'app in una finestra pop-up) ────────────────
+let miniMode = localStorage.getItem('studyhub_mini') === '1';
+function toggleMini(on){
+    miniMode = on === undefined ? !miniMode : !!on;
+    localStorage.setItem('studyhub_mini', miniMode ? '1' : '0');
+    closeModal('modalSettings');
+    render(); window.scrollTo(0, 0);
+}
+function miniCardHtml(x){
+    const t = x.t, id = jsArg(t.id), sn = jsArg(x.name), cr = breadcrumb(t, x.sub);
+    const btn = q => {
+        const r = schedule(t, q, x.sub, x.name);
+        const lbl = r.requeue ? fmtDelay(r.delayMin) : fmtIvl(r.interval) + (r.capped ? ' ⚑' : '');
+        return `<button class="rate-btn" style="--rc:${Q_INFO[q].color}" onclick="rate(${id},'${q}',${sn})"><span class="rate-lbl">${Q_INFO[q].label}</span><span class="rate-iv">${lbl}</span></button>`;
+    };
+    return `<div class="review-card mini-card${isLearning(t) && !t.relearn ? ' learning' : ''}" style="--c:${topicColor(t, x.sub)};--sub:${x.sub.color}">
+        <div class="crumb"><span style="color:${x.sub.color}">${escHtml(x.name)}</span>${cr ? ' › ' + escHtml(cr) : ''}</div>
+        <div class="review-name">${escHtml(t.name)}</div>
+        ${t.questions.length ? `<ol class="q-list">${t.questions.map(q => `<li>${escHtml(q)}</li>`).join('')}</ol>` : ''}
+        <div class="rate-grid">${btn('ripeti')}${btn('incerto')}${btn('consolida')}${btn('buono')}</div>
+    </div>`;
+}
+function renderMini(app){
+    app.style.removeProperty('--sub');
+    const q = mixedQueue(), soon = [];
+    Object.keys(data.subjects).forEach(n => learningSoon(data.subjects[n], n).forEach(t => soon.push({ t, name: n, sub: data.subjects[n] })));
+    soon.sort((a, b) => a.t.learn.due - b.t.learn.due);
+    const next = soon[0];
+    const timer = (pomodoroRunning || pomodoroBreak || pomodoroSeconds !== pomodoroStudyMins * 60)
+        ? `<div class="mini-timer"><span>⏱ <b id="pomoTimeText">${fmtMMSS(pomoRemaining())}</b> · ${pomodoroBreak ? 'Pausa' : 'Studio'}${pomodoroRunning ? '' : ' (ferma)'}</span>
+            <button class="chip" onclick="pomodoroToggle()">${pomodoroRunning ? '⏸' : '▶'}</button></div>` : '';
+    app.innerHTML = `
+        <div class="mini-head">
+            <span class="brand">Study <em>Hub</em></span>
+            <span class="muted" style="flex:1;">${q.length ? `${q.length} da ripetere` : ''}</span>
+            <button class="icon-btn" onclick="toggleMini(false)" title="Torna all'app completa">⤢</button>
+        </div>
+        ${timer}
+        ${q.length
+            ? q.slice(0, 5).map(miniCardHtml).join('') + (q.length > 5 ? `<div class="muted" style="text-align:center;">…e altri ${q.length - 5}</div>` : '')
+            : `<div class="mini-empty"><span class="big">✓</span>${next
+                ? `Prossima ripetizione<br><b class="mini-count" data-due="${next.t.learn.due}">${fmtCountdown(next.t.learn.due - Date.now())}</b><div class="muted">${escHtml(next.t.name)} · ${escHtml(next.name)}</div>`
+                : 'Niente da ripetere per ora'}</div>`}
+        ${q.length && next ? `<div class="muted" style="text-align:center;margin-top:10px;">Poi: ${escHtml(next.t.name)} <span data-due="${next.t.learn.due}">${fmtCountdown(next.t.learn.due - Date.now())}</span></div>` : ''}`;
 }
 
 // ── Sposta un ripasso ───────────────────────────────────────────────────────
@@ -1329,7 +1402,8 @@ function rate(id, q, subName){
         t.next = shiftDate(today, r.interval);
     }
     save();
-    if (data.isGlobal) { const y = window.scrollY; renderGlobal(document.getElementById('appContent')); window.scrollTo(0, y); }
+    if (miniMode) render();
+    else if (data.isGlobal) { const y = window.scrollY; renderGlobal(document.getElementById('appContent')); window.scrollTo(0, y); }
     else refreshTab();
     showToast(r.requeue ? `↻ “${t.name}”: ripeti tra ${fmtDelay(r.delayMin)}`
         : `✓ ${r.graduated ? 'Imparato! ' : ''}${Q_INFO[q].label} · ${r.interval === 1 ? 'domani' : 'tra ' + fmtIvl(r.interval)}${r.capped ? " (prima dell'esame)" : ''}${note ? ' · feedback salvato' : ''}`, snap);
@@ -2176,7 +2250,7 @@ function updatePomoDisplay(){
     if (ring) ring.setAttribute('stroke-dashoffset', POMO_C * (1 - rem / pomoTotal()));
     document.title = pomodoroRunning ? `${fmtMMSS(rem)} · ${pomodoroBreak ? 'Pausa' : 'Studio'}` : BASE_TITLE;
 }
-function refreshPomodoro(){ const div = document.getElementById('pomoInner'); if (div) div.innerHTML = renderPomodoro(); updatePomoDisplay(); }
+function refreshPomodoro(){ if (miniMode) { render(); updatePomoDisplay(); return; } const div = document.getElementById('pomoInner'); if (div) div.innerHTML = renderPomodoro(); updatePomoDisplay(); }
 function setPomoDuration(type, delta){
     if (type === 'study') { pomodoroStudyMins = Math.min(90, Math.max(5, pomodoroStudyMins + delta)); if (!pomodoroRunning && !pomodoroBreak) pomodoroSeconds = pomodoroStudyMins * 60; }
     else { pomodoroBreakMins = Math.min(30, Math.max(1, pomodoroBreakMins + delta)); if (!pomodoroRunning && pomodoroBreak) pomodoroSeconds = pomodoroBreakMins * 60; }
@@ -2191,9 +2265,11 @@ function pomoFinishPhase(whileAway){
     if (!pomodoroBreak) {
         addPomoSession(); pomodoroBreak = true; pomodoroSeconds = pomodoroBreakMins * 60;
         showToast(whileAway ? '✓ Sessione di studio completata mentre eri via' : '✓ Sessione completata — pausa!');
+        if (!whileAway) phoneNotify('✓ Sessione completata', 'È ora di fare una pausa.', 'pomo');
     } else {
         pomodoroBreak = false; pomodoroSeconds = pomodoroStudyMins * 60;
         showToast(whileAway ? '⏱ La pausa è finita mentre eri via' : '⏱ Pausa finita — al lavoro!');
+        if (!whileAway) phoneNotify('⏱ Pausa finita', 'Si torna a studiare!', 'pomo');
     }
     savePomoState(); refreshPomodoro(); updatePomoDisplay();
 }
@@ -2373,7 +2449,7 @@ function handleShareTarget(){
 function ytPause(){ if (ytPlayer && ytPlayer.pauseVideo) { try { ytPlayer.pauseVideo(); } catch (_) {} } }
 function updateYTDock(){
     const dock = document.getElementById('ytDock');
-    if (dock) dock.classList.toggle('offscreen', !(ytPlaylistUrl && ytMode !== 'app' && !data.isGlobal && data.activeTab === 'pomodoro'));
+    if (dock) dock.classList.toggle('offscreen', !(ytPlaylistUrl && ytMode !== 'app' && !miniMode && !data.isGlobal && data.activeTab === 'pomodoro'));
 }
 
 // ── Materie ─────────────────────────────────────────────────────────────────
@@ -2836,8 +2912,14 @@ function renderSettings(){
     document.getElementById('settingsBody').innerHTML = `
         <div class="set-sec"><button class="btn btn-primary" style="margin-top:0;" onclick="openTutorial()">📖 Guida rapida</button></div>
         <div class="set-sec"><div class="set-lbl"><span>App sul telefono${helpBtn('install')}</span></div>${installSectionHtml()}</div>
-        <div class="set-sec">${lbl('Notifiche di ripetizione', 'ntfy')}
-            <div class="seg">${seg('ntfyOn', 1, 'Attive', settings.ntfyOn)}${seg('ntfyOn', 0, 'Disattivate', !settings.ntfyOn)}</div>
+        <div class="set-sec">${lbl('Notifiche del telefono', 'phoneNotif')}
+            <div class="seg">${seg('phoneNotif', 1, 'Attive', settings.phoneNotif)}${seg('phoneNotif', 0, 'Disattivate', !settings.phoneNotif)}</div>
+            <div class="set-hint">${phoneNotifStatus()}</div></div>
+        <div class="set-sec">${lbl('Modalità mini', 'mini')}
+            <button class="btn btn-secondary" style="margin-top:0;" onclick="toggleMini(true)">⧉ Apri la modalità mini</button>
+            <div class="set-hint">Una schermata compatta da tenere in una finestra pop-up.</div></div>
+        <div class="set-sec">${lbl('Avvisi anche ad app chiusa (ntfy)', 'ntfy')}
+            <div class="seg">${seg('ntfyOn', 1, 'Attivi', settings.ntfyOn)}${seg('ntfyOn', 0, 'Disattivati', !settings.ntfyOn)}</div>
             ${settings.ntfyOn ? `<div class="ntfy-box">
                 <ol class="ntfy-steps">
                     <li>Installa l'app <b>ntfy</b> dal Play Store (o dall'App Store).</li>
@@ -2845,7 +2927,7 @@ function renderSettings(){
                 </ol>
                 <div style="display:flex;gap:8px;align-items:center;margin:4px 0 10px;"><code class="ntfy-topic">${escHtml(ntfyTopic())}</code><button class="btn btn-secondary btn-small" onclick="copyNtfyTopic()">Copia</button></div>
                 <button class="btn btn-secondary" style="margin-top:0;" onclick="ntfyTest()">🔔 Invia una notifica di prova</button>
-            </div>` : `<div class="set-hint">Ti avvisa quando è ora di ripetere, anche ad app chiusa (serve l'app gratuita ntfy).</div>`}</div>
+            </div>` : `<div class="set-hint">Facoltativo: serve l'app gratuita ntfy.</div>`}</div>
         <div class="set-sec">${lbl('Tema')}<div class="seg">${seg('theme','dark','○ Scuro', !light)}${seg('theme','light','◐ Chiaro', light)}</div></div>
         <div class="set-sec">${lbl('I tuoi dati', 'backup')}
             <div class="btn-row">
@@ -2878,6 +2960,7 @@ function setSetting(key, val){
     else if (key === 'archiveDays') { settings.archiveDays = Number(val); saveSettings(); render(); }
     else if (key === 'loadBalance') { settings.loadBalance = Number(val) === 1; saveSettings(); render(); }
     else if (key === 'dailyMax') { settings.dailyMax = Number(val); saveSettings(); render(); }
+    else if (key === 'phoneNotif') { if (Number(val) === 1) { enablePhoneNotif(); return; } settings.phoneNotif = false; saveSettings(); }
     else if (key === 'ntfyOn') { settings.ntfyOn = Number(val) === 1; if (settings.ntfyOn) ntfyTopic(); saveSettings(); }
     renderSettings();
 }
@@ -2898,7 +2981,7 @@ const TUTORIAL = [
     { icon:'📅', title:'4. Agenda', html:`Tocca <b>Agenda</b> in alto a sinistra per vedere ripassi e impegni di tutte le materie.<br><br>Dalla vista <b>Ripasso</b> dell'Agenda fai i ripassi di tutte le materie insieme.` },
     { icon:'🎯', title:"5. La data dell'esame", html:`Nella materia tocca <b>Imposta data esame</b>.<br><br>Vedrai il conto alla rovescia e i ripassi si organizzeranno per arrivare pronta. Nella scheda <b>Stat</b> trovi quanto sei preparata.` },
     { icon:'💾', title:'6. I tuoi dati', html:`I dati sono salvati <b>solo su questo telefono</b>.<br><br>Ogni tanto apri <b>⚙ Impostazioni</b> → <b>Esporta backup</b>: se cambi telefono, con <b>Importa backup</b> recuperi tutto.` },
-    { icon:'✨', title:'Ultimi consigli', html:`Hai toccato qualcosa per sbaglio? In basso compare <b>Annulla</b>.<br><br>Vuoi un avviso quando è ora di ripetere, anche ad app chiusa? ⚙ Impostazioni → <b>Notifiche</b>.<br><br>Nelle impostazioni, il tasto <span class="help-btn" style="pointer-events:none;">?</span> spiega cosa fa ogni opzione.<br><br>Puoi rivedere questa guida da <b>⚙ Impostazioni → Guida rapida</b>.` }
+    { icon:'✨', title:'Ultimi consigli', html:`Hai toccato qualcosa per sbaglio? In basso compare <b>Annulla</b>.<br><br>Vuoi un avviso quando è ora di ripetere? ⚙ Impostazioni → <b>Notifiche del telefono</b>. Con la <b>modalità mini</b> puoi tenere l'app in una finestrella pop-up.<br><br>Nelle impostazioni, il tasto <span class="help-btn" style="pointer-events:none;">?</span> spiega cosa fa ogni opzione.<br><br>Puoi rivedere questa guida da <b>⚙ Impostazioni → Guida rapida</b>.` }
 ];
 let _tutStep = 0;
 function openTutorial(){ _tutStep = 0; closeModal('modalSettings'); renderTutorial(); openModal('modalTutorial'); }
@@ -2932,6 +3015,8 @@ const HELP = {
     script:    { t:'Script Google', b:`È il codice da copiare in Google per attivare la sincronizzazione. Ti serve solo se la stai configurando: altrimenti ignoralo.` },
     install:   { t:"Installare l'app", b:`Installata, Study Hub si apre dalla schermata Home come un'app vera: niente barra di Chrome, e se la chiudi per sbaglio non perdi nulla (nemmeno il timer).<br><br>Usa il pulsante <b>Installa l'app</b>. Se non funziona, lo stesso pulsante ti dice cosa fare.` },
     ytmode:    { t:'Musica da YouTube', b:`<b>Scegliere la playlist:</b> nell'app YouTube apri la playlist → <b>Condividi</b> → <b>Study Hub</b>. Oppure copia il link e tocca <b>📋 Incolla link</b>.<br><br><b>App YouTube</b> (consigliato): quando avvii lo studio si apre l'app YouTube con la tua playlist. Con <b>YouTube Premium</b> la musica continua anche se esci o spegni lo schermo. Poi torna qui: il timer è andato avanti da solo.<br><br><b>Dentro Study Hub</b>: la musica suona dentro l'app, ma si ferma appena esci o spegni lo schermo. Il motivo: YouTube non permette di usare Premium nei video inseriti in altre app.` },
+    phoneNotif:{ t:'Notifiche del telefono', b:`Quando è ora di ripetere un argomento (o finisce il timer) compare una notifica come quelle di WhatsApp.<br><br>Funziona finché Study Hub è <b>aperta</b>: anche piccola, in <b>finestra pop-up</b> o a schermo diviso. Se la chiudi, dopo qualche minuto Android la addormenta e le notifiche si fermano.<br><br>La prima volta il telefono ti chiede il permesso: tocca <b>Consenti</b>.` },
+    mini:      { t:'Modalità mini', b:`Una versione compatta di Study Hub: mostra solo cosa ripetere adesso (con i 4 tasti), il conto alla rovescia alla prossima ripetizione e il timer.<br><br>Ideale in una <b>finestra pop-up</b>: dalle app recenti tocca l'icona di Study Hub → <b>Apri in finestra pop-up</b> (il nome cambia a seconda del telefono).<br><br>Per tornare all'app completa tocca <b>⤢</b>.` },
     learnSteps:{ t:'Ripetizioni il giorno dello studio', b:`Come in Anki: appena studiato, un argomento non va subito a domani. Te lo faccio ripetere dopo pochi minuti, poi dopo un po' di più.<br><br>Con <b>10 min → 1 ora</b>: lo ripeti dopo 10 minuti; se va bene, dopo un'ora; se va bene di nuovo, passa ai ripassi dei giorni successivi.<br><br>Se dici <b>Ripeti</b> ricomincia da 10 minuti. Ogni sotto-argomento va per conto suo, così ripeti solo quelli che non sai.` },
     ntfy:      { t:'Notifiche', b:`Study Hub da sola non può avvisarti quando è chiusa (è un limite delle app web). Per questo usa <b>ntfy</b>: un'app gratuita, senza account, che riceve gli avvisi.<br><br>1. Installa <b>ntfy</b> dal Play Store.<br>2. Tocca <b>+</b>, incolla il nome del canale che trovi qui, tocca <b>Iscriviti</b>.<br>3. Premi <b>Invia una notifica di prova</b>.<br><br>Il nome del canale è come una password: non condividerlo. Se ripeti un argomento prima dell'avviso, la notifica arriva lo stesso: ignorala.` },
     versions:  { t:'Versioni salvate', b:`Con la sincronizzazione attiva, Google conserva una copia dei tuoi dati per ogni giorno (fino a 30 giorni).<br><br>Se qualcosa va storto, scegli un giorno e tocca <b>Ripristina</b> per tornare a com'era.` }
@@ -3022,12 +3107,12 @@ document.addEventListener('keydown', e => {
         if (typeof fn === 'function') fn();
         return;
     }
-    const inReview = data.isGlobal ? data.globalView === 'mixed' && !agendaQuery.trim() : data.activeTab === 'ripasso';
+    const inReview = miniMode || (data.isGlobal ? data.globalView === 'mixed' && !agendaQuery.trim() : data.activeTab === 'ripasso');
     if (inReview && !isTyping() && !anyModalOpen() && !e.ctrlKey && !e.metaKey && !e.altKey) {
         const map = { '1':'ripeti', '2':'incerto', '3':'consolida', '4':'buono' };
         if (map[e.key]) {
             let first = null;
-            if (data.isGlobal) { const x = mixedQueue()[0]; if (x) first = { id: x.t.id, name: x.name }; }
+            if (miniMode || data.isGlobal) { const x = mixedQueue()[0]; if (x) first = { id: x.t.id, name: x.name }; }
             else { const sub = data.subjects[data.activeSub], t = sub && dueTopics(sub, data.activeSub)[0]; if (t) first = { id: t.id, name: data.activeSub }; }
             if (first) { e.preventDefault(); rate(first.id, map[e.key], first.name); }
         }

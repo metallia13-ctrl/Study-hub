@@ -1,0 +1,56 @@
+// Study Hub — Service Worker
+// Strategia "network-first" per i file dell'app: quando pubblichi una nuova
+// versione su GitHub Pages la ricevi subito; offline usa la copia in cache.
+// Incrementa CACHE_VERSION ad ogni rilascio per pulire le cache vecchie.
+// Il Notebook sta sullo stesso sito e ha le sue cache (iniziano con "nb-"):
+// qui si cancellano solo quelle di StudyHub.
+const CACHE_VERSION = 'studyhub-v20';
+const APP_SHELL = ['./', './index.html', './style.css', './app.js', './manifest.webmanifest',
+                   './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
+
+self.addEventListener('install', e => {
+    // Ogni file è messo in cache separatamente: se uno manca, il service worker si installa lo stesso
+    e.waitUntil(caches.open(CACHE_VERSION)
+        .then(c => Promise.all(APP_SHELL.map(u => c.add(u).catch(() => null))))
+        .then(() => self.skipWaiting()));
+});
+
+self.addEventListener('activate', e => {
+    e.waitUntil(
+        caches.keys()
+            .then(keys => Promise.all(keys.filter(k => k.startsWith('studyhub-') && k !== CACHE_VERSION).map(k => caches.delete(k))))
+            .then(() => self.clients.claim())
+    );
+});
+
+self.addEventListener('fetch', e => {
+    const req = e.request;
+    if (req.method !== 'GET') return;
+    const url = new URL(req.url);
+    // Solo file della stessa origine: Apps Script, YouTube e Google Fonts passano diretti
+    if (url.origin !== self.location.origin) return;
+    e.respondWith(
+        fetch(req)
+            .then(res => {
+                if (res && res.ok) {
+                    const copy = res.clone();
+                    caches.open(CACHE_VERSION).then(c => c.put(req, copy));
+                }
+                return res;
+            })
+            .catch(() => caches.match(req).then(r => r || caches.match('./index.html')))
+    );
+});
+
+// Tocco su una notifica: torna a StudyHub (o lo apre). Le finestre del Notebook,
+// che sta sullo stesso sito, non contano: si cerca solo una finestra di StudyHub.
+self.addEventListener('notificationclick', e => {
+    e.notification.close();
+    const url = (e.notification.data && e.notification.data.url) || './';
+    const scope = self.registration.scope;
+    e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+        const own = list.filter(c => c.url.startsWith(scope) && c.frameType !== 'nested');
+        for (const c of own) { if ('focus' in c) return c.focus(); }
+        return self.clients.openWindow ? self.clients.openWindow(url) : null;
+    }));
+});

@@ -2,7 +2,9 @@
 // Strategia "network-first" per i file dell'app: quando pubblichi una nuova
 // versione su GitHub Pages la ricevi subito; offline usa la copia in cache.
 // Incrementa CACHE_VERSION ad ogni rilascio per pulire le cache vecchie.
-const CACHE_VERSION = 'studyhub-v19';
+// Il Notebook sta sullo stesso sito e ha le sue cache (iniziano con "nb-"):
+// qui si cancellano solo quelle di StudyHub.
+const CACHE_VERSION = 'studyhub-v20';
 const APP_SHELL = ['./', './index.html', './style.css', './app.js', './manifest.webmanifest',
                    './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
 
@@ -16,7 +18,7 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
     e.waitUntil(
         caches.keys()
-            .then(keys => Promise.all(keys.filter(k => k !== CACHE_VERSION).map(k => caches.delete(k))))
+            .then(keys => Promise.all(keys.filter(k => k.startsWith('studyhub-') && k !== CACHE_VERSION).map(k => caches.delete(k))))
             .then(() => self.clients.claim())
     );
 });
@@ -40,12 +42,15 @@ self.addEventListener('fetch', e => {
     );
 });
 
-// Tocco su una notifica: torna all'app (o la apre)
+// Tocco su una notifica: torna a StudyHub (o lo apre). Le finestre del Notebook,
+// che sta sullo stesso sito, non contano: si cerca solo una finestra di StudyHub.
 self.addEventListener('notificationclick', e => {
     e.notification.close();
     const url = (e.notification.data && e.notification.data.url) || './';
+    const scope = self.registration.scope;
     e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-        for (const c of list) { if ('focus' in c) return c.focus(); }
+        const own = list.filter(c => c.url.startsWith(scope) && c.frameType !== 'nested');
+        for (const c of own) { if ('focus' in c) return c.focus(); }
         return self.clients.openWindow ? self.clients.openWindow(url) : null;
     }));
 });

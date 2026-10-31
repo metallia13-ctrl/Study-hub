@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  STUDY HUB — app.js (v12)
+//  STUDY HUB — app.js (v12.1: collegamento con il Notebook)
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ── Costanti ────────────────────────────────────────────────────────────────
@@ -1260,10 +1260,14 @@ async function enablePhoneNotif(){
 }
 
 // ── Modalità mini (per tenere l'app in una finestra pop-up) ────────────────
-let miniMode = localStorage.getItem('studyhub_mini') === '1';
+// Dentro il pannello del Notebook la modalità mini è quella di partenza e ha
+// una preferenza sua, così non cambia l'app aperta da sola.
+const EMBEDDED = (() => { try { return window.top !== window; } catch (_) { return true; } })();
+const MINI_KEY = EMBEDDED ? 'studyhub_mini_nb' : 'studyhub_mini';
+let miniMode = EMBEDDED ? localStorage.getItem(MINI_KEY) !== '0' : localStorage.getItem(MINI_KEY) === '1';
 function toggleMini(on){
     miniMode = on === undefined ? !miniMode : !!on;
-    localStorage.setItem('studyhub_mini', miniMode ? '1' : '0');
+    localStorage.setItem(MINI_KEY, miniMode ? '1' : '0');
     closeModal('modalSettings');
     render(); window.scrollTo(0, 0);
 }
@@ -1277,6 +1281,7 @@ function miniCardHtml(x){
     return `<div class="review-card mini-card${isLearning(t) && !t.relearn ? ' learning' : ''}" style="--c:${topicColor(t, x.sub)};--sub:${x.sub.color}">
         <div class="crumb"><span style="color:${x.sub.color}">${escHtml(x.name)}</span>${cr ? ' › ' + escHtml(cr) : ''}</div>
         <div class="review-name">${escHtml(t.name)}</div>
+        ${nbLinkHtml(t)}
         ${t.questions.length ? `<ol class="q-list">${t.questions.map(q => `<li>${escHtml(q)}</li>`).join('')}</ol>` : ''}
         <div class="rate-grid">${btn('ripeti')}${btn('incerto')}${btn('consolida')}${btn('buono')}</div>
     </div>`;
@@ -1367,6 +1372,7 @@ function reviewCardHtml(t, sub, name, mixed){
         ${crumb}
         <div class="review-name">${escHtml(t.name)}</div>
         <div class="review-meta">${metaMain} · ${plural(nRev, 'ripetizione', 'ripetizioni')}${late < 0 ? ` · <span class="rep">in ritardo ${-late}g</span>` : ''}${t.repeats ? ` · <span class="rep">ripetuto ${t.repeats}✕</span>` : ''}</div>
+        ${nbLinkHtml(t)}
         ${qs}
         <input type="text" class="fb-input" id="fb-${escHtml(t.id)}" placeholder="Feedback di oggi (facoltativo)…" autocomplete="off">
         ${notesBlockHtml(t, false, qs ? '▸ Note / risposte' : null)}
@@ -1401,6 +1407,16 @@ function rate(id, q, subName){
     const snap = snapshot();
     const fbEl = document.getElementById(`fb-${id}`);
     const note = fbEl ? fbEl.value.trim() : '';
+    const r = applyRating(t, sub, name, q, note);
+    save();
+    if (miniMode) render();
+    else if (data.isGlobal) { const y = window.scrollY; renderGlobal(document.getElementById('appContent')); window.scrollTo(0, y); }
+    else refreshTab();
+    showToast(r.requeue ? `↻ “${t.name}”: ripeti tra ${fmtDelay(r.delayMin)}`
+        : `✓ ${r.graduated ? 'Imparato! ' : ''}${Q_INFO[q].label} · ${r.interval === 1 ? 'domani' : 'tra ' + fmtIvl(r.interval)}${r.capped ? " (prima dell'esame)" : ''}${note ? ' · feedback salvato' : ''}`, snap);
+}
+// Aggiorna l'argomento con la valutazione (usata da Ripasso e dal Notebook)
+function applyRating(t, sub, name, q, note){
     const wasLearning = isLearning(t) && !t.relearn;
     const r = schedule(t, q, sub, name);
     t.easeFactor = r.ef;
@@ -1423,12 +1439,7 @@ function rate(id, q, subName){
         t.interval = r.interval;
         t.next = shiftDate(today, r.interval);
     }
-    save();
-    if (miniMode) render();
-    else if (data.isGlobal) { const y = window.scrollY; renderGlobal(document.getElementById('appContent')); window.scrollTo(0, y); }
-    else refreshTab();
-    showToast(r.requeue ? `↻ “${t.name}”: ripeti tra ${fmtDelay(r.delayMin)}`
-        : `✓ ${r.graduated ? 'Imparato! ' : ''}${Q_INFO[q].label} · ${r.interval === 1 ? 'domani' : 'tra ' + fmtIvl(r.interval)}${r.capped ? " (prima dell'esame)" : ''}${note ? ' · feedback salvato' : ''}`, snap);
+    return r;
 }
 function mixedQueue(){
     const lists = Object.keys(data.subjects).map(n => ({ n, l: dueTopics(data.subjects[n], n).slice() })).filter(x => x.l.length);
@@ -1498,8 +1509,17 @@ function addTopic(){
 function markStudied(id, snapIn){
     const loc = locateTopic(id);
     if (!loc) return;
-    const { t, sub, name } = loc, snap = snapIn || snapshot(), today = todayStr();
-    const c = containerIds(sub);
+    const { t, sub, name } = loc, snap = snapIn || snapshot();
+    const targets = applyStudied(t, sub, name);
+    save();
+    refreshCurrent();
+    const steps = subLearnSteps(sub);
+    showToast(targets.length > 1
+        ? `✓ ${targets.length} sotto-argomenti in apprendimento${steps.length ? ` — prima ripetizione tra ${fmtDelay(steps[0])}` : ''}`
+        : `✓ “${t.name}” ${steps.length ? `in apprendimento — ripeti tra ${fmtDelay(steps[0])}` : 'studiato — ripasso domani'}`, snap);
+}
+function applyStudied(t, sub, name, note){
+    const c = containerIds(sub), today = todayStr();
     let targets;
     if (c.has(t.id)) {
         const desc = descendantsOf(sub, t.id);
@@ -1507,15 +1527,10 @@ function markStudied(id, snapIn){
         sub.topics.forEach(x => { if (desc.has(x.id) && c.has(x.id)) delete x.status; });
         delete t.status;
     } else targets = [t];
-    targets.forEach(x => { startLearning(x, sub); x.studiedOn = today; pushHistory(x, { d: today, ts: Date.now(), q: 'studio' }); });
-    save();
+    targets.forEach(x => { startLearning(x, sub); x.studiedOn = today; pushHistory(x, note ? { d: today, ts: Date.now(), q: 'studio', note } : { d: today, ts: Date.now(), q: 'studio' }); });
     const firstDue = targets.filter(isLearning).map(x => x.learn.due).sort()[0];
     if (firstDue) notifyLater(targets.map(x => x.name), name, firstDue);
-    refreshCurrent();
-    const steps = subLearnSteps(sub);
-    showToast(targets.length > 1
-        ? `✓ ${targets.length} sotto-argomenti in apprendimento${steps.length ? ` — prima ripetizione tra ${fmtDelay(steps[0])}` : ''}`
-        : `✓ “${t.name}” ${steps.length ? `in apprendimento — ripeti tra ${fmtDelay(steps[0])}` : 'studiato — ripasso domani'}`, snap);
+    return targets;
 }
 function programCardHtml(sub){
     const c = coverage(sub), pct = c.total ? Math.round(c.done / c.total * 100) : 0;
@@ -1782,6 +1797,7 @@ function archDetailHtml(t){
         <div class="set-lbl" style="margin-top:6px;">Posizione</div>
         <select class="styled-select" onchange="moveTopic(${id}, this.value)"><option value="">— Argomento principale —</option>${topicOptionsHtml(sub, excl, t.parent)}</select>
         <div class="detail-actions" style="margin-top:6px;">
+            ${nbLinkHtml(t, true)}
             <button class="chip" onclick="openSubTopicModal(${id})">+ Sotto-argomento</button>
             ${todo ? '' : `<button class="chip" onclick="openDateModal(${id})">Ripianifica</button><button class="chip" onclick="resetTopic(${id})">↺ Reset completo</button>`}
             <button class="chip" onclick="toggleArchiveTopic(${id})">${t.archived ? '⤒ Ripristina' : '⤓ Archivia'}</button>
@@ -3171,10 +3187,170 @@ document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') { savePomoState(); return; }
     if (pomodoroRunning) pomoTick();
     if (syncUrl && !syncInProgress && Date.now() - lastSyncAt > 60000) doSync(true);
-    if (settings.orientation !== 'any') applyOrientation(false);
+    if (settings.orientation !== 'any' && !EMBEDDED) applyOrientation(false);
     learningTick();
+    nbProcess();
 });
 window.addEventListener('online', () => { if (syncUrl) doSync(true); });
+
+
+// ── Più finestre aperte (app e pannello nel Notebook): i dati si uniscono ──
+// Senza questo, l'ultima finestra che salva cancellerebbe le modifiche
+// fatte nell'altra. Si usa la stessa unione per argomento della sync.
+let _mergePersistAt = 0;
+window.addEventListener('storage', e => {
+    if (e.key === NB_OUT) { nbProcess(); return; }
+    if (e.key !== STORAGE_KEY || !e.newValue) return;
+    let raw;
+    try { raw = JSON.parse(e.newValue); } catch (_) { return; }
+    const before = syncPayloadSig(data);
+    const { merged, remote } = mergeData(data, raw);
+    if (syncPayloadSig(merged) === before) return;
+    data = merged;
+    snapshotSigs();
+    // l'altra finestra non aveva le nostre modifiche (al più una volta al secondo, per non rimbalzare)
+    if (syncPayloadSig(merged) !== syncPayloadSig(remote) && Date.now() - _mergePersistAt > 1000) { _mergePersistAt = Date.now(); persist(); }
+    renderWhenIdle();
+});
+
+// ── Collegamento con il Notebook (stesso sito: localStorage condiviso) ──────
+// Il Notebook scrive gli eventi in "shb-notebook-out"; qui li applichiamo e
+// scriviamo gli id fatti in "shb-studyhub-ack", che il Notebook poi toglie.
+const NB_OUT = 'shb-notebook-out', NB_ACK = 'shb-studyhub-ack';
+const NB_GRADE = { again:'ripeti', hard:'incerto', good:'consolida', easy:'buono' };
+const NB_MODES = { cloze:'Cloze', oral:'Orale', blank:'Pagina bianca', quiz:'Domande', read:'Lettura', cards:'Flashcard' };
+function nbRead(k){ try { const v = JSON.parse(localStorage.getItem(k) || '[]'); return Array.isArray(v) ? v : []; } catch (_) { return []; } }
+function nbSafeUrl(u){ try { const x = new URL(String(u || ''), location.href); return x.origin === location.origin ? x.href : ''; } catch (_) { return ''; } }
+function nbFindLinked(secId){
+    if (!secId) return null;
+    for (const n of Object.keys(data.subjects)) {
+        const t = data.subjects[n].topics.find(x => x.nb && x.nb.sec === secId);
+        if (t) return { t, sub: data.subjects[n], name: n };
+    }
+    return null;
+}
+function nbSubject(ev){
+    if (ev.shSubject && data.subjects[ev.shSubject]) return ev.shSubject;
+    const want = String(ev.shSubject || ev.subject || '').trim();
+    const hit = Object.keys(data.subjects).find(n => norm(n) === norm(want));
+    if (hit) return hit;
+    const name = want.slice(0, 60) || 'Notebook';
+    const used = new Set(Object.values(data.subjects).map(s => s.color));
+    const color = COLORS.find(c => !used.has(c)) || COLORS[Object.keys(data.subjects).length % COLORS.length];
+    data.subjects[name] = { topics:[], color, examDate:null, examModeManual:false, examModeOverride:false, sessionLog:{}, todos:[], notepad:'', deletedTopics:{}, algo:'fsrs', retention:0.9, examBoost:true, timeLog:{}, learnSteps:[10, 60] };
+    return name;
+}
+function nbStudied(ev){
+    let loc = nbFindLinked(ev.sectionId), made = false;
+    if (!loc) {
+        const name = nbSubject(ev), sub = data.subjects[name], c = containerIds(sub);
+        const free = x => !x.nb;
+        let t = null;
+        if (ev.shPlace === 'link') t = sub.topics.find(x => x.id === ev.shTopicId && free(x)) || null;
+        // senza una scelta: lo stesso nome già nel programma
+        if (!t && ev.shPlace !== 'new') t = sub.topics.find(x => free(x) && !c.has(x.id) && norm(x.name) === norm(ev.topic)) || null;
+        if (!t) {
+            let parent = null;
+            if (ev.shPlace === 'new') parent = sub.topics.some(x => x.id === ev.shParentId) ? ev.shParentId : null;
+            else if (ev.macro) { const m = sub.topics.find(x => norm(x.name) === norm(ev.macro)); if (m) parent = m.id; }
+            t = newTopic(String(ev.topic || 'Senza titolo').trim().slice(0, 200), '', null, data.triage || 1, parent);
+            t.status = 'todo';
+            sub.topics.push(t);
+            made = true;
+        }
+        loc = { t, sub, name };
+    }
+    const { t, sub, name } = loc;
+    t.nb = { sec: String(ev.sectionId), url: nbSafeUrl(ev.url) || (t.nb && t.nb.url) || '', made: made || !!(t.nb && t.nb.made) };
+    if (t.archived) t.archived = false;
+    // già in ripasso qui: resta com'è, si aggiunge solo il collegamento
+    if (isTodo(t) || containerIds(sub).has(t.id)) applyStudied(t, sub, name, 'Dal Notebook');
+    return 'studied';
+}
+function nbReview(ev){
+    const loc = nbFindLinked(ev.sectionId), q = NB_GRADE[ev.grade];
+    if (!loc || !q) return null;
+    const { t, sub, name } = loc;
+    if (isTodo(t)) { applyStudied(t, sub, name, 'Dal Notebook'); return 'studied'; }
+    const how = `Notebook${NB_MODES[ev.mode] ? ' · ' + NB_MODES[ev.mode] : ''}`;
+    const due = isLearning(t) || (t.next && t.next <= todayStr());
+    // ripassato prima del tempo e andato bene: lo annoto senza spostare il ripasso
+    if (!due && (q === 'consolida' || q === 'buono')) {
+        pushHistory(t, { d: todayStr(), ts: Date.now(), q: 'nota', note: `Ripasso anticipato nel ${how}: ${Q_INFO[q].label}` });
+        return 'early';
+    }
+    applyRating(t, sub, name, q, how);
+    return 'review';
+}
+function nbUnlink(ev){
+    const loc = nbFindLinked(ev.sectionId);
+    if (!loc) return null;
+    const { t, sub } = loc;
+    // creato dal Notebook e senza sotto-argomenti: si toglie; altrimenti resta, scollegato
+    if (t.nb.made && !sub.topics.some(x => x.parent === t.id)) { sub.topics = sub.topics.filter(x => x !== t); return 'removed'; }
+    delete t.nb;
+    pushHistory(t, { d: todayStr(), ts: Date.now(), q: 'nota', note: 'Il Notebook ha ripreso i ripassi di questa sezione: se non vuoi ripassarlo anche qui, archivialo o eliminalo' });
+    return 'kept';
+}
+let _nbBusy = false, _nbAgain = false;
+async function nbProcess(){
+    if (_nbBusy) { _nbAgain = true; return; }
+    if (!nbRead(NB_OUT).length) return;
+    _nbBusy = true;
+    const run = () => {
+        // prima unisco quello che un'altra finestra ha appena salvato
+        try { const raw = localStorage.getItem(STORAGE_KEY); if (raw && raw !== JSON.stringify(data)) { data = mergeData(data, JSON.parse(raw)).merged; snapshotSigs(); } } catch (_) {}
+        const out = nbRead(NB_OUT), acks = new Set(nbRead(NB_ACK));
+        const todo = out.filter(e => e && e.id && !acks.has(e.id));
+        const n = { studied:0, review:0, early:0, removed:0, kept:0 }, done = [];
+        todo.forEach(ev => {
+            let r = null;
+            try {
+                if (ev.type === 'topic-studied') r = nbStudied(ev);
+                else if (ev.type === 'topic-review') r = nbReview(ev);
+                else if (ev.type === 'topic-unlinked') r = nbUnlink(ev);
+            } catch (err) { console.warn('Evento del Notebook non applicato', ev, err); }
+            if (r) n[r]++;
+            done.push(ev.id);
+        });
+        if (todo.length) save();
+        const ids = new Set(out.map(e => e && e.id));
+        const ack = [...new Set([...[...acks].filter(id => ids.has(id)), ...done])];
+        try { localStorage.setItem(NB_ACK, JSON.stringify(ack)); } catch (_) {}
+        if (!todo.length) return;
+        renderWhenIdle();
+        const parts = [];
+        if (n.studied) parts.push(plural(n.studied, 'argomento studiato', 'argomenti studiati'));
+        if (n.review) parts.push(plural(n.review, 'ripasso', 'ripassi'));
+        if (n.early) parts.push(plural(n.early, 'ripasso anticipato annotato', 'ripassi anticipati annotati'));
+        if (n.removed + n.kept) parts.push(plural(n.removed + n.kept, 'sezione tornata al Notebook', 'sezioni tornate al Notebook'));
+        if (parts.length) showToast('📓 Dal Notebook: ' + parts.join(' · '));
+    };
+    try {
+        if (navigator.locks && navigator.locks.request) await navigator.locks.request('shb-notebook-bridge', run);
+        else run();
+    } catch (err) { console.warn('Collegamento con il Notebook', err); }
+    finally {
+        _nbBusy = false;
+        if (_nbAgain) { _nbAgain = false; nbProcess(); }
+    }
+}
+// Dal ripasso agli appunti: nel pannello del Notebook cambia pagina accanto, altrimenti apre il Notebook
+function nbLinkHtml(t, chip){
+    if (!t.nb || !t.nb.url) return '';
+    const go = `event.stopPropagation();openInNotebook(${jsArg(t.nb.url)})`;
+    return chip
+        ? `<button class="chip" onclick="${go}">📓 Apri nel Notebook</button>`
+        : `<div style="margin:2px 0 8px;"><button class="chip" onclick="${go}" title="Apri la sezione nel Notebook">📓 Appunti nel Notebook</button></div>`;
+}
+function openInNotebook(url){
+    url = nbSafeUrl(url);
+    if (!url) { showToast('⚠ Collegamento al Notebook non valido'); return; }
+    if (EMBEDDED) {
+        try { if (window.top.location.origin === location.origin) { window.top.location.href = url; return; } } catch (_) {}
+    }
+    window.open(url, '_blank', 'noopener');
+}
 
 // ── Avvio ───────────────────────────────────────────────────────────────────
 let _lastDay = todayStr();
@@ -3190,14 +3366,15 @@ function init(){
     handleShareTarget();
     render();
     updateSyncBtn(getSyncStatus());
-    applyOrientation(false);
-    if (!localStorage.getItem(TUTORIAL_KEY)) {
+    if (!EMBEDDED) applyOrientation(false);
+    if (!localStorage.getItem(TUTORIAL_KEY) && !EMBEDDED) {
         if (Object.keys(data.subjects).length) localStorage.setItem(TUTORIAL_KEY, '1');   // chi usa già l'app non la rivede
         else setTimeout(openTutorial, 400);
     }
     if (_loadError) showToast('⚠ Dati locali illeggibili — copia salvata, ripristina da sync o backup');
     if (syncUrl) setTimeout(() => doSync(true), 1500);
     learningTick(); setInterval(learningTick, 10000);
+    nbProcess();
     setInterval(() => {
         if (syncUrl && !syncInProgress && document.visibilityState === 'visible') doSync(true);
     }, 5 * 60 * 1000);

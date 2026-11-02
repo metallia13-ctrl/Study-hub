@@ -1,44 +1,62 @@
 {
-  "id": "studyhub-app-2026",
-  "name": "Study Hub",
-  "short_name": "Study Hub",
-  "description": "Pianificazione dello studio con ripasso spaziato",
+  "id": "./",
+  "name": "StudyHub Notebook",
+  "short_name": "Notebook",
+  "description": "Appunti di studio, PDF annotati, flashcard e active recall collegati a StudyHub.",
   "lang": "it",
-  "start_url": "./?app=1",
+  "dir": "ltr",
+  "start_url": "./index.html#/review",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0a0a0a",
-  "theme_color": "#0a0a0a",
+  "display_override": ["standalone"],
   "orientation": "any",
-  "prefer_related_applications": false,
+  "background_color": "#0c1020",
+  "theme_color": "#0c1020",
+  "categories": ["education", "productivity", "medical"],
+  "launch_handler": { "client_mode": "navigate-existing" },
   "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-monochrome-512.png", "sizes": "512x512", "type": "image/png", "purpose": "monochrome" }
+  ],
+  "shortcuts": [
     {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
+      "name": "Ripasso di oggi",
+      "short_name": "Ripasso",
+      "url": "./index.html#/review",
+      "icons": [{ "src": "shortcut-review.png", "sizes": "96x96", "type": "image/png" }]
     },
     {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
+      "name": "Studia le flashcard",
+      "short_name": "Flashcard",
+      "url": "./index.html#/study/all",
+      "icons": [{ "src": "shortcut-cards.png", "sizes": "96x96", "type": "image/png" }]
     },
     {
-      "src": "icon-maskable-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "name": "Importa testo o PDF",
+      "short_name": "Importa",
+      "url": "./index.html#/import",
+      "icons": [{ "src": "shortcut-import.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Calendario",
+      "short_name": "Calendario",
+      "url": "./index.html#/calendar",
+      "icons": [{ "src": "shortcut-calendar.png", "sizes": "96x96", "type": "image/png" }]
     }
   ],
   "share_target": {
-    "action": "./",
-    "method": "GET",
-    "enctype": "application/x-www-form-urlencoded",
+    "action": "./share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
     "params": {
       "title": "title",
       "text": "text",
-      "url": "url"
+      "url": "url",
+      "files": [
+        { "name": "files", "accept": ["application/pdf", ".pdf"] }
+      ]
     }
   }
 }
